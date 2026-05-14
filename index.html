@@ -314,6 +314,66 @@ button,input,textarea,select{font-family:'Outfit',sans-serif}
 /* Step highlight */
 .step-done{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:rgba(29,216,160,0.1);border:1px solid rgba(29,216,160,0.25);border-radius:99px;color:var(--ok);font-weight:600;font-size:13px;margin:4px 0}
 .topic-complete{padding:14px;background:rgba(29,216,160,0.08);border:1px solid rgba(29,216,160,0.2);border-radius:12px;color:var(--ok);font-weight:600;text-align:center;margin:4px 0;font-size:14px}
+
+/* ─── MOBILE RESPONSIVE ─── */
+@media (max-width: 768px) {
+  body{overflow:hidden}
+  
+  /* Sidebar becomes bottom nav on mobile */
+  .sidebar{
+    position:fixed;bottom:0;left:0;right:0;
+    width:100%;height:60px;min-width:unset;
+    flex-direction:row;align-items:center;
+    border-right:none;border-top:1px solid var(--b1);
+    z-index:100;padding:0;
+  }
+  .sb-top{display:none}
+  .sb-nav{display:flex;flex-direction:row;padding:0;flex:1;height:100%}
+  .nav-item{flex:1;flex-direction:column;gap:3px;padding:8px 4px;font-size:10px;border-radius:0;justify-content:center;align-items:center;height:100%;margin:0}
+  .nav-item svg{width:20px;height:20px}
+  .sb-section-title,.sb-chats,.new-chat-btn,.sb-divider{display:none}
+  .sb-user{display:none}
+  
+  /* Main content fills screen above bottom nav */
+  .main{margin-bottom:60px;height:calc(100vh - 60px)}
+  #app{flex-direction:column}
+  
+  /* Chat adjustments */
+  .chat-empty{padding:1.5rem 1rem}
+  .chat-empty h2{font-size:1.4rem}
+  .suggestions{grid-template-columns:1fr}
+  .chat-topbar{padding:10px 14px}
+  .messages{padding:12px}
+  .msg{max-width:92%}
+  .chat-input-wrap{padding:10px 12px}
+  
+  /* Progress */
+  .stats-row{grid-template-columns:1fr 1fr;gap:8px}
+  .stat-val{font-size:20px}
+  .pg-wrap{padding:16px}
+  .topics-grid{grid-template-columns:1fr}
+  
+  /* Profile */
+  .prof-wrap{padding:16px}
+  .form-grid{grid-template-columns:1fr}
+  .plans-grid{grid-template-columns:1fr}
+  .prof-hero{flex-direction:column;text-align:center;gap:12px}
+  
+  /* Landing */
+  .land-stats{gap:20px}
+  .land-title{font-size:2rem}
+  
+  /* Modals */
+  .md{margin:0.5rem;border-radius:14px}
+  .confirm-box{margin:1rem}
+}
+
+@media (max-width: 480px) {
+  .stats-row{grid-template-columns:1fr 1fr}
+  .stat-box{padding:12px}
+  .msg{max-width:95%}
+  .msg-bubble{font-size:13px;padding:9px 12px}
+}
 </style>
 </head>
 <body>
@@ -361,6 +421,10 @@ button,input,textarea,select{font-family:'Outfit',sans-serif}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         Чат
       </button>
+      <button class="nav-item" id="nav-chats-mobile" onclick="openMobileChats()" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        Чаты
+      </button>
       <button class="nav-item" id="nav-progress" onclick="showPage('progress')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>
         Прогресс
@@ -403,6 +467,25 @@ button,input,textarea,select{font-family:'Outfit',sans-serif}
   <main class="main">
     <!-- CHAT PAGE -->
     <div class="page active" id="page-chat">
+      <!-- Mobile chat list overlay -->
+      <div id="mobileChatList" style="display:none;position:fixed;inset:0;z-index:200;background:var(--bg);flex-direction:column;padding:16px;padding-bottom:70px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div style="font-size:18px;font-weight:800">Мои чаты</div>
+          <button onclick="closeMobileChats()" style="background:var(--s2);border:1px solid var(--b1);color:var(--text);padding:6px 14px;border-radius:8px;font-size:13px;cursor:pointer">✕ Закрыть</button>
+        </div>
+        <button class="new-chat-btn" onclick="newChat();closeMobileChats()" style="display:flex;margin:0 0 8px 0;width:100%">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Новый чат
+        </button>
+        <div style="padding:4px 0 6px">
+          <div style="display:flex;align-items:center;gap:7px;background:var(--s2);border:1px solid var(--b1);border-radius:9px;padding:8px 12px">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input type="text" placeholder="Поиск чатов..." oninput="filterMobileChats(this.value)" style="background:none;border:none;outline:none;color:var(--text);font-family:Outfit,sans-serif;font-size:13px;width:100%">
+          </div>
+        </div>
+        <div id="mobileChatItems" style="flex:1;overflow-y:auto"></div>
+      </div>
+
       <div class="chat-empty" id="chatEmpty">
         <div class="chat-empty-icon">✨</div>
         <h2>Чем могу помочь?</h2>
@@ -683,7 +766,7 @@ button,input,textarea,select{font-family:'Outfit',sans-serif}
 <div class="notif" id="notif"></div>
 
 <script>
-const API='https://smarttutorbackend-production.up.railway.app';
+const API='http://localhost:8000';
 let token=localStorage.getItem('st_token');
 let user=JSON.parse(localStorage.getItem('st_user')||'null');
 let sessions=[],curSid=null,renamingSid=null,msgCount=0;
@@ -1238,6 +1321,47 @@ async function changePass(){
 }
 
 function showFMsg(id,msg,type){const el=document.getElementById(id);el.textContent=msg;el.className=`fmsg ${type} show`;setTimeout(()=>el.classList.remove('show'),4000);}
+
+// ─── MOBILE ───
+function isMobile(){return window.innerWidth<=768;}
+
+function openMobileChats(){
+  const overlay=document.getElementById('mobileChatList');
+  overlay.style.display='flex';
+  overlay.style.flexDirection='column';
+  // Copy chats to mobile list
+  const items=document.getElementById('mobileChatItems');
+  items.innerHTML='';
+  sessions.filter(s=>!s.is_deleted).forEach(s=>{
+    const div=document.createElement('div');
+    div.className='chat-item'+(s.id===curSid?' active':'');
+    div.style.cssText='display:flex;padding:12px;border-radius:10px;margin-bottom:4px;cursor:pointer;background:var(--s1);border:1px solid var(--b1)';
+    div.innerHTML=`<span style="flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.title||'Новый чат'}</span>`;
+    div.addEventListener('click',()=>{openChat(s.id,s.title);closeMobileChats();});
+    items.appendChild(div);
+  });
+}
+
+function closeMobileChats(){
+  document.getElementById('mobileChatList').style.display='none';
+}
+
+function filterMobileChats(q){
+  const items=document.getElementById('mobileChatItems').querySelectorAll('div');
+  items.forEach(el=>{
+    const title=el.textContent.toLowerCase();
+    el.style.display=(!q||title.includes(q.toLowerCase()))?'flex':'none';
+  });
+}
+
+// Show/hide mobile-specific elements
+function handleResize(){
+  const mobile=isMobile();
+  const mobileBtn=document.getElementById('nav-chats-mobile');
+  if(mobileBtn)mobileBtn.style.display=mobile?'flex':'none';
+}
+window.addEventListener('resize',handleResize);
+handleResize();
 </script>
 </body>
 </html>
