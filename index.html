@@ -1293,10 +1293,28 @@ function initGoogle(){
 function triggerGoogleAuth(){
   const clientId = window._googleClientId || '';
   if(!clientId || typeof google === 'undefined'){
-    notify('Google авторизация: укажите GOOGLE_CLIENT_ID в настройках','err');
+    showGoogleUnavailable();
     return;
   }
   google.accounts.id.prompt();
+}
+
+function showGoogleUnavailable(){
+  // Показываем модальное окно "в разработке"
+  const mo=document.createElement('div');
+  mo.className='mo show';mo.style.zIndex='5000';
+  mo.innerHTML=`<div class="md" style="max-width:360px;text-align:center">
+    <div style="font-size:2.5rem;margin-bottom:12px">🔧</div>
+    <div style="font-size:17px;font-weight:800;margin-bottom:8px">Google OAuth</div>
+    <div style="font-size:13px;color:var(--t3);line-height:1.7;margin-bottom:20px">
+      Авторизация через Google находится в разработке.<br>
+      Используйте регистрацию по email.
+    </div>
+    <button class="fbtn primary" style="width:100%" onclick="this.closest('.mo').remove();openAuth('register')">Зарегистрироваться по email</button>
+    <button class="fbtn ghost" style="width:100%;margin-top:8px" onclick="this.closest('.mo').remove()">Закрыть</button>
+  </div>`;
+  mo.addEventListener('click',e=>{if(e.target===mo)mo.remove();});
+  document.body.appendChild(mo);
 }
 
 async function handleGoogleCredential(response){

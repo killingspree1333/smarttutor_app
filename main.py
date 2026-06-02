@@ -131,17 +131,23 @@ _verify_codes = {}   # Верификация email при регистраци�
 @app.post("/auth/register")
 async def register(data: UserRegister, request: Request, background_tasks: BackgroundTasks):
     import random, time
-    if sb_get("users", {"email": data.email}):
-        raise HTTPException(status_code=400, detail="Email уже зарегистрирован")
-    if sb_get("users", {"username": data.username}):
-        raise HTTPException(status_code=400, detail="Имя пользователя уже занято")
-    # Создаём пользователя неактивным до подтверждения email
-    user = sb_insert("users", {
-        "email": data.email,
-        "username": data.username,
-        "hashed_password": get_password_hash(data.password),
-        "is_active": False
-    })
+    existing = sb_get("users", {"email": data.email})
+    if existing:
+        if existing[0].get("is_active"):
+            raise HTTPException(status_code=400, detail="Email уже зарегистрирован")
+        # Аккаунт есть но не подтверждён — обновляем пароль и шлём новый код
+        user = existing[0]
+        sb_update("users", {"hashed_password": get_password_hash(data.password)}, {"id": user["id"]})
+    else:
+        if sb_get("users", {"username": data.username}):
+            raise HTTPException(status_code=400, detail="Имя пользователя уже занято")
+        # Создаём пользователя неактивным до подтверждения email
+        user = sb_insert("users", {
+            "email": data.email,
+            "username": data.username,
+            "hashed_password": get_password_hash(data.password),
+            "is_active": False
+        })
     sb_insert("subscriptions", {"user_id": user["id"], "plan": "free", "is_active": True})
     # Генерируем и отправляем код верификации
     code = str(random.randint(100000, 999999))
