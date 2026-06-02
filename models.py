@@ -8,8 +8,6 @@ class UserRegister(BaseModel):
     email: EmailStr
     username: str
     password: str
-    full_name: Optional[str] = None
-    group_name: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -29,14 +27,12 @@ class UserProfile(BaseModel):
     email: str
     username: str
     full_name: Optional[str]
-    group_name: Optional[str]
     avatar_url: Optional[str]
     is_active: bool
     created_at: datetime
 
 class UserProfileUpdate(BaseModel):
     full_name: Optional[str] = None
-    group_name: Optional[str] = None
     avatar_url: Optional[str] = None
 
 # ───── CHAT ─────
@@ -44,7 +40,7 @@ class UserProfileUpdate(BaseModel):
 class MessageCreate(BaseModel):
     session_id: Optional[int] = None
     content: str
-    subject: Optional[str] = None   # предмет для промпт-инжиниринга
+    subject: Optional[str] = None
 
 class MessageResponse(BaseModel):
     id: int

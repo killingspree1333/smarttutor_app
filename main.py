@@ -124,15 +124,122 @@ def favicon():
         return FileResponse("SmartTutor.png", media_type="image/png")
     raise HTTPException(status_code=404)
 
+# Хранилища кодов верификации
+_verify_codes = {}   # Верификация email при регистрации
+
 # ─── АВТОРИЗАЦИЯ ───
-@app.post("/auth/register", response_model=TokenResponse)
-def register(data: UserRegister, request: Request):
+@app.post("/auth/register")
+async def register(data: UserRegister, request: Request):
+    import random, time
     if sb_get("users", {"email": data.email}):
         raise HTTPException(status_code=400, detail="Email уже зарегистрирован")
     if sb_get("users", {"username": data.username}):
         raise HTTPException(status_code=400, detail="Имя пользователя уже занято")
-    user = sb_insert("users", {"email": data.email, "username": data.username, "hashed_password": get_password_hash(data.password), "full_name": data.full_name, "group_name": data.group_name, "is_active": True})
+    # Создаём пользователя неактивным до подтверждения email
+    user = sb_insert("users", {
+        "email": data.email,
+        "username": data.username,
+        "hashed_password": get_password_hash(data.password),
+        "is_active": False
+    })
     sb_insert("subscriptions", {"user_id": user["id"], "plan": "free", "is_active": True})
+    # Генерируем и отправляем код верификации
+    code = str(random.randint(100000, 999999))
+    _verify_codes[data.email] = {"code": code, "user_id": user["id"], "expires": time.time() + 600}
+    print(f"[VERIFY] Код для {data.email}: {code}")
+    try:
+        send_email_smtp(
+            data.email,
+            "SmartTutor — подтвердите аккаунт",
+            f"Добро пожаловать в SmartTutor!\n\nВаш код подтверждения: {code}\n\nКод действителен 10 минут."
+        )
+    except Exception as e:
+        print(f"[SMTP ERROR] {e}")
+    return {"status": "verification_required", "email": data.email}
+
+@app.post("/auth/verify-email", response_model=TokenResponse)
+def verify_email(data: dict, request: Request):
+    import time
+    email = data.get("email", "").strip().lower()
+    code = data.get("code", "").strip()
+    stored = _verify_codes.get(email)
+    if not stored:
+        raise HTTPException(status_code=400, detail="Код не найден. Зарегистрируйтесь снова.")
+    if time.time() > stored["expires"]:
+        del _verify_codes[email]
+        raise HTTPException(status_code=400, detail="Код истёк. Зарегистрируйтесь снова.")
+    if stored["code"] != code:
+        raise HTTPException(status_code=400, detail="Неверный код")
+    user_id = stored["user_id"]
+    sb_update("users", {"is_active": True}, {"id": user_id})
+    del _verify_codes[email]
+    users = sb_get("users", {"id": user_id})
+    user = users[0]
+    sb_insert("login_logs", {"user_id": user_id, "ip_address": request.client.host, "success": True})
+    token = create_access_token({"sub": str(user_id)})
+    return TokenResponse(access_token=token, user_id=user_id, username=user["username"], email=user["email"])
+
+@app.post("/auth/resend-verification")
+async def resend_verification(data: dict):
+    import random, time
+    email = data.get("email", "").strip().lower()
+    users = sb_get("users", {"email": email})
+    if not users or users[0].get("is_active"):
+        return {"message": "ok"}
+    code = str(random.randint(100000, 999999))
+    _verify_codes[email] = {"code": code, "user_id": users[0]["id"], "expires": time.time() + 600}
+    print(f"[VERIFY RESEND] Код для {email}: {code}")
+    try:
+        send_email_smtp(email, "SmartTutor — код подтверждения", f"Ваш новый код: {code}\n\nКод действителен 10 минут.")
+    except Exception as e:
+        print(f"[SMTP ERROR] {e}")
+    return {"message": "Код отправлен повторно"}
+
+@app.post("/auth/google", response_model=TokenResponse)
+async def google_auth(data: dict, request: Request):
+    import secrets
+    credential = data.get("credential", "")
+    if not credential:
+        raise HTTPException(status_code=400, detail="Нет Google токена")
+    # Верифицируем токен через Google API (без доп. библиотек)
+    try:
+        r = await httpx.AsyncClient().get(
+            f"https://oauth2.googleapis.com/tokeninfo?id_token={credential}",
+            timeout=10.0
+        )
+        if r.status_code != 200:
+            raise HTTPException(status_code=400, detail="Неверный Google токен")
+        info = r.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Ошибка проверки Google токена")
+    email = info.get("email", "")
+    name = info.get("name", "") or info.get("given_name", "")
+    google_id = info.get("sub", "")
+    if not email:
+        raise HTTPException(status_code=400, detail="Не удалось получить email от Google")
+    # Ищем пользователя по email
+    users = sb_get("users", {"email": email})
+    if users:
+        user = users[0]
+        # Активируем если не активен
+        if not user.get("is_active"):
+            sb_update("users", {"is_active": True}, {"id": user["id"]})
+    else:
+        # Создаём нового пользователя
+        base_username = email.split("@")[0].replace(".", "_").replace("-", "_")[:20]
+        username = base_username
+        counter = 1
+        while sb_get("users", {"username": username}):
+            username = f"{base_username}{counter}"
+            counter += 1
+        user = sb_insert("users", {
+            "email": email,
+            "username": username,
+            "hashed_password": get_password_hash(secrets.token_hex(16)),
+            "full_name": name,
+            "is_active": True
+        })
+        sb_insert("subscriptions", {"user_id": user["id"], "plan": "free", "is_active": True})
     sb_insert("login_logs", {"user_id": user["id"], "ip_address": request.client.host, "success": True})
     token = create_access_token({"sub": str(user["id"])})
     return TokenResponse(access_token=token, user_id=user["id"], username=user["username"], email=user["email"])
@@ -144,6 +251,8 @@ def login(data: UserLogin, request: Request):
     if not user or not verify_password(data.password, user["hashed_password"]):
         if user: sb_insert("login_logs", {"user_id": user["id"], "ip_address": request.client.host, "success": False})
         raise HTTPException(status_code=401, detail="Неверный email или пароль")
+    if not user.get("is_active"):
+        raise HTTPException(status_code=403, detail="UNVERIFIED:" + data.email)
     sb_insert("login_logs", {"user_id": user["id"], "ip_address": request.client.host, "success": True})
     token = create_access_token({"sub": str(user["id"])})
     return TokenResponse(access_token=token, user_id=user["id"], username=user["username"], email=user["email"])
@@ -151,7 +260,7 @@ def login(data: UserLogin, request: Request):
 # ─── ПРОФИЛЬ ───
 @app.get("/profile/me")
 def get_profile(current_user=Depends(get_current_user)):
-    return {"id": current_user["id"], "email": current_user["email"], "username": current_user["username"], "full_name": current_user.get("full_name"), "avatar_url": current_user.get("avatar_url"), "is_active": current_user["is_active"], "created_at": str(current_user.get("created_at", ""))}
+    return {"id": current_user["id"], "email": current_user["email"], "username": current_user["username"], "full_name": current_user.get("full_name"), "avatar_url": current_user.get("avatar_url"), "is_active": current_user["is_active"], "created_at": str(current_user.get("created_at", "")), "auth_provider": current_user.get("auth_provider", "email")}
 
 @app.put("/profile/me")
 def update_profile(data: UserProfileUpdate, current_user=Depends(get_current_user)):
