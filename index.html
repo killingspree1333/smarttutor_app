@@ -1357,7 +1357,13 @@ async function doReg(){
       document.getElementById('verifyEmailLabel').textContent=email;
       document.getElementById('verifyCode').value='';
       switchTab('verify');
-      notify('Код отправлен на '+email+' 📧');
+      if(d.dev_code){
+        // Email не дошёл — показываем код прямо в форме
+        document.getElementById('verifyCode').value=d.dev_code;
+        notify('📧 Email не доставлен. Код подставлен автоматически: '+d.dev_code,'err');
+      } else {
+        notify('Код отправлен на '+email+' 📧');
+      }
     }
   }catch(e){showFErr('rErr',e.message);}
   finally{btn.disabled=false;btn.textContent='Создать аккаунт';}
@@ -1914,7 +1920,12 @@ async function forgotSendCode(){
     document.getElementById('forgotEmailLabel').textContent=email;
     forgotGoBack(2);
     setTimeout(()=>document.getElementById('forgotCode').focus(),100);
-    notify('Код отправлен на '+email);
+    if(d.dev_code){
+      document.getElementById('forgotCode').value=d.dev_code;
+      notify('📧 Email не доставлен. Код подставлен: '+d.dev_code,'err');
+    } else {
+      notify('Код отправлен на '+email);
+    }
   }catch(e){
     const el=document.getElementById('forgotErr1');el.textContent=e.message;el.classList.add('show');
   }finally{btn.disabled=false;btn.textContent='Отправить код';}

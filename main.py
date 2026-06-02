@@ -147,11 +147,21 @@ async def register(data: UserRegister, request: Request, background_tasks: Backg
     code = str(random.randint(100000, 999999))
     _verify_codes[data.email] = {"code": code, "user_id": user["id"], "expires": time.time() + 600}
     print(f"[VERIFY] Код для {data.email}: {code}")
-    background_tasks.add_task(send_email_smtp, data.email,
-        "SmartTutor — подтвердите аккаунт",
-        f"Добро пожаловать в SmartTutor!\n\nВаш код подтверждения: {code}\n\nКод действителен 10 минут."
-    )
-    return {"status": "verification_required", "email": data.email}
+    # Пробуем отправить email, если не получилось — вернём код в ответе
+    sent = False
+    try:
+        import asyncio as _aio
+        sent = _aio.get_event_loop().run_until_complete(
+            send_email(data.email,
+                "SmartTutor — подтвердите аккаунт",
+                f"Добро пожаловать в SmartTutor!\n\nВаш код подтверждения: {code}\n\nКод действителен 10 минут.")
+        )
+    except Exception:
+        pass
+    resp = {"status": "verification_required", "email": data.email}
+    if not sent:
+        resp["dev_code"] = code  # показываем код если email не дошёл
+    return resp
 
 @app.post("/auth/verify-email", response_model=TokenResponse)
 def verify_email(data: dict, request: Request):
@@ -275,34 +285,29 @@ def change_password(data: dict, current_user=Depends(get_current_user)):
 _email_codes = {}
 _reset_codes = {}  # Коды сброса пароля
 
-async def send_email(to_email: str, subject: str, body: str):
-    """Отправка через Resend API (HTTP) — работает на Railway"""
+async def send_email(to_email: str, subject: str, body: str) -> bool:
+    """Отправка через Resend API. Возвращает True если успешно."""
     api_key = os.getenv("RESEND_API_KEY", "")
     print(f"[EMAIL] Отправка на {to_email}: {subject}")
     if not api_key:
-        print(f"[DEV] Нет RESEND_API_KEY. Код выше в логах.")
-        return
+        print(f"[DEV] Нет RESEND_API_KEY.")
+        return False
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             r = await client.post(
                 "https://api.resend.com/emails",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "from": "SmartTutor <onboarding@resend.dev>",
-                    "to": [to_email],
-                    "subject": subject,
-                    "text": body
-                }
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={"from": "SmartTutor <onboarding@resend.dev>", "to": [to_email], "subject": subject, "text": body}
             )
             if r.status_code in (200, 201):
                 print(f"[EMAIL] Отправлено на {to_email} ✓")
+                return True
             else:
                 print(f"[EMAIL ERROR] Resend: {r.status_code} {r.text}")
+                return False
     except Exception as e:
         print(f"[EMAIL ERROR] {e}")
+        return False
 
 # Обратная совместимость для BackgroundTasks (синхронный wrapper)
 def send_email_smtp(to_email: str, subject: str, body: str):
@@ -325,11 +330,21 @@ async def forgot_password(data: dict, background_tasks: BackgroundTasks):
     if users:
         code = str(random.randint(100000, 999999))
         _reset_codes[email] = {"code": code, "user_id": users[0]["id"], "expires": time.time() + 600}
-        print(f"[RESET CODE] {email} → {code}")  # видно в Railway Logs для тестирования
-        background_tasks.add_task(send_email_smtp, email,
-            "SmartTutor — восстановление пароля",
-            f"Ваш код для сброса пароля SmartTutor: {code}\n\nКод действителен 10 минут.\nЕсли вы не запрашивали сброс пароля — проигнорируйте это письмо."
-        )
+        print(f"[RESET CODE] {email} → {code}")
+        sent = False
+        try:
+            import asyncio as _aio
+            sent = _aio.get_event_loop().run_until_complete(
+                send_email(email,
+                    "SmartTutor — восстановление пароля",
+                    f"Ваш код для сброса пароля SmartTutor: {code}\n\nКод действителен 10 минут.")
+            )
+        except Exception:
+            pass
+        resp = {"message": "Если email зарегистрирован, код отправлен"}
+        if not sent:
+            resp["dev_code"] = code
+        return resp
     return {"message": "Если email зарегистрирован, код отправлен"}
 
 @app.post("/auth/reset-password/check")
