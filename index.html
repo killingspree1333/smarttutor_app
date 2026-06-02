@@ -1342,12 +1342,24 @@ async function doLogin(){
     const r=await fetch(`${API}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
     if(r.status===403){
       const d=await r.json();
-      if(d.detail&&d.detail.startsWith('UNVERIFIED:')){
-        const unverEmail=d.detail.replace('UNVERIFIED:','');
+      if(d.detail&&(d.detail.startsWith('UNVERIFIED:'))){
+        let unverEmail='', devCode='';
+        if(d.detail.startsWith('UNVERIFIED_CODE:')){
+          const parts=d.detail.split(':');
+          unverEmail=parts[1];
+          devCode=parts[2];
+        } else {
+          unverEmail=d.detail.replace('UNVERIFIED:','');
+        }
         _pendingVerifyEmail=unverEmail;
         document.getElementById('verifyEmailLabel').textContent=unverEmail;
-        document.getElementById('verifyCode').value='';
+        document.getElementById('verifyCode').value=devCode||'';
         switchTab('verify');
+        if(devCode){
+          notify('📧 Код подставлен автоматически: '+devCode,'err');
+        } else {
+          notify('Код отправлен на '+unverEmail+' 📧');
+        }
         btn.disabled=false;btn.textContent='Войти';
         return;
       }

@@ -264,7 +264,24 @@ def login(data: UserLogin, request: Request):
         if user: sb_insert("login_logs", {"user_id": user["id"], "ip_address": request.client.host, "success": False})
         raise HTTPException(status_code=401, detail="Неверный email или пароль")
     if not user.get("is_active"):
-        raise HTTPException(status_code=403, detail="UNVERIFIED:" + data.email)
+        # Генерируем новый код и отправляем/возвращаем его
+        import random, time as _time
+        code = str(random.randint(100000, 999999))
+        _verify_codes[data.email] = {"code": code, "user_id": user["id"], "expires": _time.time() + 600}
+        print(f"[VERIFY LOGIN] Код для {data.email}: {code}")
+        sent = False
+        try:
+            import asyncio as _aio
+            sent = _aio.get_event_loop().run_until_complete(
+                send_email(data.email, "SmartTutor — подтвердите аккаунт",
+                    f"Ваш код подтверждения SmartTutor: {code}\n\nКод действителен 10 минут.")
+            )
+        except Exception:
+            pass
+        detail = f"UNVERIFIED:{data.email}"
+        if not sent:
+            detail = f"UNVERIFIED_CODE:{data.email}:{code}"
+        raise HTTPException(status_code=403, detail=detail)
     sb_insert("login_logs", {"user_id": user["id"], "ip_address": request.client.host, "success": True})
     token = create_access_token({"sub": str(user["id"])})
     return TokenResponse(access_token=token, user_id=user["id"], username=user["username"], email=user["email"])
