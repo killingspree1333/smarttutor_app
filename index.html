@@ -1117,6 +1117,7 @@ button,input,textarea,select{font-family:'Outfit',sans-serif}
             <div style="font-size:13px;color:var(--t3)">Тест-кейсы из QA Tester одногруппника</div>
             <div style="display:flex;gap:8px">
               <button onclick="loadAdminCases()" style="padding:7px 14px;border-radius:8px;border:1px solid var(--b1);background:var(--s2);color:var(--t2);font-size:12px;cursor:pointer;font-family:Outfit,sans-serif">🔄 Обновить</button>
+              <button onclick="downloadCasesCSV()" style="padding:7px 14px;border-radius:8px;border:1px solid var(--b1);background:var(--s2);color:var(--t2);font-size:12px;cursor:pointer;font-family:Outfit,sans-serif">⬇ Скачать CSV</button>
               <button onclick="showAddCaseModal()" style="padding:7px 14px;border-radius:8px;border:none;background:var(--accent-g);color:#fff;font-size:12px;cursor:pointer;font-family:Outfit,sans-serif;font-weight:600">+ Добавить</button>
             </div>
           </div>
@@ -2291,6 +2292,32 @@ async function loadAdminCases(){
         </td>
       </tr>`).join('');
   }catch(e){}
+}
+
+function downloadCasesCSV(){
+  if(!_adminCases.length){notify('Нет тест-кейсов для скачивания','err');return;}
+  const headers=['ID','Проект','Название','Описание','Шаги','Ожидаемый результат','Приоритет','Статус','Источник','Дата'];
+  const rows=_adminCases.map(c=>[
+    c.id,
+    `"${(c.project_name||'').replace(/"/g,'""')}"`,
+    `"${(c.case_title||'').replace(/"/g,'""')}"`,
+    `"${(c.description||'').replace(/"/g,'""')}"`,
+    `"${(c.steps||'').replace(/"/g,'""')}"`,
+    `"${(c.expected_result||'').replace(/"/g,'""')}"`,
+    c.priority||'',
+    c.status||'',
+    c.source||'',
+    c.created_at?new Date(c.created_at).toLocaleDateString('ru'):''
+  ].join(','));
+  const csv='﻿'+headers.join(',')+'\n'+rows.join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`test_cases_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  notify('CSV скачан — '+_adminCases.length+' тест-кейсов');
 }
 
 async function updateCaseStatus(id, status){
