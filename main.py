@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from typing import Optional
-import os, httpx, re
+import os, httpx, re, asyncio
 from dotenv import load_dotenv
 
 from database import sb_get, sb_get_one, sb_insert, sb_update, SUPABASE_URL, HEADERS
@@ -147,14 +147,11 @@ async def register(data: UserRegister, request: Request):
     code = str(random.randint(100000, 999999))
     _verify_codes[data.email] = {"code": code, "user_id": user["id"], "expires": time.time() + 600}
     print(f"[VERIFY] Код для {data.email}: {code}")
-    try:
-        send_email_smtp(
-            data.email,
-            "SmartTutor — подтвердите аккаунт",
-            f"Добро пожаловать в SmartTutor!\n\nВаш код подтверждения: {code}\n\nКод действителен 10 минут."
-        )
-    except Exception as e:
-        print(f"[SMTP ERROR] {e}")
+    asyncio.create_task(send_email_async(
+        data.email,
+        "SmartTutor — подтвердите аккаунт",
+        f"Добро пожаловать в SmartTutor!\n\nВаш код подтверждения: {code}\n\nКод действителен 10 минут."
+    ))
     return {"status": "verification_required", "email": data.email}
 
 @app.post("/auth/verify-email", response_model=TokenResponse)
@@ -189,10 +186,11 @@ async def resend_verification(data: dict):
     code = str(random.randint(100000, 999999))
     _verify_codes[email] = {"code": code, "user_id": users[0]["id"], "expires": time.time() + 600}
     print(f"[VERIFY RESEND] Код для {email}: {code}")
-    try:
-        send_email_smtp(email, "SmartTutor — код подтверждения", f"Ваш новый код: {code}\n\nКод действителен 10 минут.")
-    except Exception as e:
-        print(f"[SMTP ERROR] {e}")
+    asyncio.create_task(send_email_async(
+        email,
+        "SmartTutor — код подтверждения",
+        f"Ваш новый код: {code}\n\nКод действителен 10 минут."
+    ))
     return {"message": "Код отправлен повторно"}
 
 @app.post("/auth/google", response_model=TokenResponse)
@@ -280,21 +278,34 @@ _email_codes = {}
 _reset_codes = {}  # Коды сброса пароля
 
 def send_email_smtp(to_email: str, subject: str, body: str):
-    """Вспомогательная функция отправки письма"""
+    """Вспомогательная функция отправки письма (синхронная)"""
     import smtplib
     from email.mime.text import MIMEText
     smtp_email = os.getenv("SMTP_EMAIL", "")
     smtp_pass = os.getenv("SMTP_PASSWORD", "")
+    print(f"[EMAIL] Отправка на {to_email}: {subject}")
     if smtp_email and smtp_pass:
         msg = MIMEText(body, "plain", "utf-8")
         msg["Subject"] = subject
         msg["From"] = smtp_email
         msg["To"] = to_email
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10) as server:
             server.login(smtp_email, smtp_pass)
             server.send_message(msg)
+        print(f"[EMAIL] Отправлено на {to_email}")
     else:
         print(f"[DEV] Email to {to_email}: {subject}\n{body}")
+
+async def send_email_async(to_email: str, subject: str, body: str):
+    """Асинхронная отправка — не блокирует event loop"""
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
+    loop = asyncio.get_event_loop()
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            await loop.run_in_executor(pool, send_email_smtp, to_email, subject, body)
+    except Exception as e:
+        print(f"[EMAIL ERROR] {e}")
 
 @app.post("/auth/forgot-password")
 async def forgot_password(data: dict):
@@ -307,14 +318,11 @@ async def forgot_password(data: dict):
     if users:
         code = str(random.randint(100000, 999999))
         _reset_codes[email] = {"code": code, "user_id": users[0]["id"], "expires": time.time() + 600}
-        try:
-            send_email_smtp(
-                email,
-                "SmartTutor — восстановление пароля",
-                f"Ваш код для сброса пароля SmartTutor: {code}\n\nКод действителен 10 минут.\nЕсли вы не запрашивали сброс пароля — проигнорируйте это письмо."
-            )
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Ошибка отправки письма: {str(e)}")
+        asyncio.create_task(send_email_async(
+            email,
+            "SmartTutor — восстановление пароля",
+            f"Ваш код для сброса пароля SmartTutor: {code}\n\nКод действителен 10 минут.\nЕсли вы не запрашивали сброс пароля — проигнорируйте это письмо."
+        ))
     return {"message": "Если email зарегистрирован, код отправлен"}
 
 @app.post("/auth/reset-password")
@@ -356,20 +364,12 @@ async def send_email_code(data: dict, current_user=Depends(get_current_user)):
     # Отправляем письмо через Gmail SMTP
     smtp_email = os.getenv("SMTP_EMAIL", "")
     smtp_pass = os.getenv("SMTP_PASSWORD", "")
-    if smtp_email and smtp_pass:
-        try:
-            msg = MIMEText(f"Ваш код для смены email в SmartTutor: {code}\n\nКод действует 10 минут.")
-            msg["Subject"] = "SmartTutor — код подтверждения"
-            msg["From"] = smtp_email
-            msg["To"] = new_email
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-                server.login(smtp_email, smtp_pass)
-                server.send_message(msg)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Ошибка отправки письма: {str(e)}")
-    else:
-        # Режим разработки — выводим код в консоль
-        print(f"[DEV] Код подтверждения для {new_email}: {code}")
+    print(f"[EMAIL CHANGE] Код для {new_email}: {code}")
+    asyncio.create_task(send_email_async(
+        new_email,
+        "SmartTutor — код подтверждения",
+        f"Ваш код для смены email в SmartTutor: {code}\n\nКод действует 10 минут."
+    ))
     return {"message": "Код отправлен"}
 
 @app.post("/profile/email/verify-code")

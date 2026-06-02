@@ -1401,6 +1401,11 @@ function logout(){
 }
 
 function goToLanding(){
+  // Если залогинен — просто идём на чат, не разлогиниваем
+  if(token && user){
+    showPage('chat');
+    return;
+  }
   document.getElementById('app').classList.remove('show');
   document.getElementById('landing').classList.remove('hide');
   document.getElementById('landing').scrollTop=0;
