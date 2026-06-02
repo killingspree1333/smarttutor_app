@@ -275,33 +275,42 @@ def change_password(data: dict, current_user=Depends(get_current_user)):
 _email_codes = {}
 _reset_codes = {}  # Коды сброса пароля
 
-def send_email_smtp(to_email: str, subject: str, body: str):
-    """Вспомогательная функция отправки письма (синхронная)"""
-    import smtplib
-    from email.mime.text import MIMEText
-    smtp_email = os.getenv("SMTP_EMAIL", "")
-    smtp_pass = os.getenv("SMTP_PASSWORD", "")
+async def send_email(to_email: str, subject: str, body: str):
+    """Отправка через Resend API (HTTP) — работает на Railway"""
+    api_key = os.getenv("RESEND_API_KEY", "")
     print(f"[EMAIL] Отправка на {to_email}: {subject}")
-    if smtp_email and smtp_pass:
-        msg = MIMEText(body, "plain", "utf-8")
-        msg["Subject"] = subject
-        msg["From"] = smtp_email
-        msg["To"] = to_email
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10) as server:
-            server.login(smtp_email, smtp_pass)
-            server.send_message(msg)
-        print(f"[EMAIL] Отправлено на {to_email}")
-    else:
-        print(f"[DEV] Email to {to_email}: {subject}\n{body}")
-
-async def send_email_async(to_email: str, subject: str, body: str):
-    """Асинхронная отправка — не блокирует event loop"""
-    import asyncio
-    from concurrent.futures import ThreadPoolExecutor
-    loop = asyncio.get_event_loop()
+    if not api_key:
+        print(f"[DEV] Нет RESEND_API_KEY. Код выше в логах.")
+        return
     try:
-        with ThreadPoolExecutor(max_workers=1) as pool:
-            await loop.run_in_executor(pool, send_email_smtp, to_email, subject, body)
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "from": "SmartTutor <onboarding@resend.dev>",
+                    "to": [to_email],
+                    "subject": subject,
+                    "text": body
+                }
+            )
+            if r.status_code in (200, 201):
+                print(f"[EMAIL] Отправлено на {to_email} ✓")
+            else:
+                print(f"[EMAIL ERROR] Resend: {r.status_code} {r.text}")
+    except Exception as e:
+        print(f"[EMAIL ERROR] {e}")
+
+# Обратная совместимость для BackgroundTasks (синхронный wrapper)
+def send_email_smtp(to_email: str, subject: str, body: str):
+    import asyncio
+    try:
+        loop = asyncio.new_event_loop()
+        loop.run_until_complete(send_email(to_email, subject, body))
+        loop.close()
     except Exception as e:
         print(f"[EMAIL ERROR] {e}")
 
