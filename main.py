@@ -325,11 +325,28 @@ async def forgot_password(data: dict, background_tasks: BackgroundTasks):
     if users:
         code = str(random.randint(100000, 999999))
         _reset_codes[email] = {"code": code, "user_id": users[0]["id"], "expires": time.time() + 600}
+        print(f"[RESET CODE] {email} → {code}")  # видно в Railway Logs для тестирования
         background_tasks.add_task(send_email_smtp, email,
             "SmartTutor — восстановление пароля",
             f"Ваш код для сброса пароля SmartTutor: {code}\n\nКод действителен 10 минут.\nЕсли вы не запрашивали сброс пароля — проигнорируйте это письмо."
         )
     return {"message": "Если email зарегистрирован, код отправлен"}
+
+@app.post("/auth/reset-password/check")
+def check_reset_code(data: dict):
+    """Проверяет код без смены пароля — для шага 2 формы"""
+    import time
+    email = data.get("email", "").strip().lower()
+    code = data.get("code", "").strip()
+    stored = _reset_codes.get(email)
+    if not stored:
+        raise HTTPException(status_code=400, detail="Код не найден. Запросите новый.")
+    if time.time() > stored["expires"]:
+        del _reset_codes[email]
+        raise HTTPException(status_code=400, detail="Код истёк. Запросите новый.")
+    if stored["code"] != code:
+        raise HTTPException(status_code=400, detail="Неверный код")
+    return {"message": "ok"}
 
 @app.post("/auth/reset-password")
 def reset_password(data: dict):

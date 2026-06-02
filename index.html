@@ -1923,13 +1923,19 @@ async function forgotSendCode(){
 async function forgotVerifyCode(){
   const code=document.getElementById('forgotCode').value.trim();
   if(code.length!==6){
-    const el=document.getElementById('forgotErr2');el.textContent='Код должен быть 6 цифр';el.classList.add('show');return;
+    const el=document.getElementById('forgotErr2');el.textContent='Введите 6-значный код';el.classList.add('show');return;
   }
-  // Просто проверяем что код введён и переходим к шагу 3
-  // Реальная проверка будет при смене пароля
-  forgotGoBack(3);
-  document.getElementById('forgotTitle').textContent='Новый пароль';
-  setTimeout(()=>document.getElementById('forgotNewPass').focus(),100);
+  const btn=document.getElementById('forgotBtn2');btn.disabled=true;btn.textContent='Проверяем...';
+  try{
+    const r=await fetch(`${API}/auth/reset-password/check`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:_forgotEmail,code})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.detail||'Неверный код');
+    forgotGoBack(3);
+    document.getElementById('forgotTitle').textContent='Новый пароль';
+    setTimeout(()=>document.getElementById('forgotNewPass').focus(),100);
+  }catch(e){
+    const el=document.getElementById('forgotErr2');el.textContent=e.message;el.classList.add('show');
+  }finally{btn.disabled=false;btn.textContent='Подтвердить код';}
 }
 
 async function forgotSetPassword(){
