@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Header, Request
+from fastapi import FastAPI, HTTPException, Depends, Header, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from typing import Optional
@@ -129,7 +129,7 @@ _verify_codes = {}   # Верификация email при регистраци�
 
 # ─── АВТОРИЗАЦИЯ ───
 @app.post("/auth/register")
-async def register(data: UserRegister, request: Request):
+async def register(data: UserRegister, request: Request, background_tasks: BackgroundTasks):
     import random, time
     if sb_get("users", {"email": data.email}):
         raise HTTPException(status_code=400, detail="Email уже зарегистрирован")
@@ -147,11 +147,10 @@ async def register(data: UserRegister, request: Request):
     code = str(random.randint(100000, 999999))
     _verify_codes[data.email] = {"code": code, "user_id": user["id"], "expires": time.time() + 600}
     print(f"[VERIFY] Код для {data.email}: {code}")
-    asyncio.create_task(send_email_async(
-        data.email,
+    background_tasks.add_task(send_email_smtp, data.email,
         "SmartTutor — подтвердите аккаунт",
         f"Добро пожаловать в SmartTutor!\n\nВаш код подтверждения: {code}\n\nКод действителен 10 минут."
-    ))
+    )
     return {"status": "verification_required", "email": data.email}
 
 @app.post("/auth/verify-email", response_model=TokenResponse)
@@ -177,7 +176,7 @@ def verify_email(data: dict, request: Request):
     return TokenResponse(access_token=token, user_id=user_id, username=user["username"], email=user["email"])
 
 @app.post("/auth/resend-verification")
-async def resend_verification(data: dict):
+async def resend_verification(data: dict, background_tasks: BackgroundTasks):
     import random, time
     email = data.get("email", "").strip().lower()
     users = sb_get("users", {"email": email})
@@ -186,11 +185,10 @@ async def resend_verification(data: dict):
     code = str(random.randint(100000, 999999))
     _verify_codes[email] = {"code": code, "user_id": users[0]["id"], "expires": time.time() + 600}
     print(f"[VERIFY RESEND] Код для {email}: {code}")
-    asyncio.create_task(send_email_async(
-        email,
+    background_tasks.add_task(send_email_smtp, email,
         "SmartTutor — код подтверждения",
         f"Ваш новый код: {code}\n\nКод действителен 10 минут."
-    ))
+    )
     return {"message": "Код отправлен повторно"}
 
 @app.post("/auth/google", response_model=TokenResponse)
@@ -308,7 +306,7 @@ async def send_email_async(to_email: str, subject: str, body: str):
         print(f"[EMAIL ERROR] {e}")
 
 @app.post("/auth/forgot-password")
-async def forgot_password(data: dict):
+async def forgot_password(data: dict, background_tasks: BackgroundTasks):
     import random, time
     email = data.get("email", "").strip().lower()
     if not email or "@" not in email:
@@ -318,11 +316,10 @@ async def forgot_password(data: dict):
     if users:
         code = str(random.randint(100000, 999999))
         _reset_codes[email] = {"code": code, "user_id": users[0]["id"], "expires": time.time() + 600}
-        asyncio.create_task(send_email_async(
-            email,
+        background_tasks.add_task(send_email_smtp, email,
             "SmartTutor — восстановление пароля",
             f"Ваш код для сброса пароля SmartTutor: {code}\n\nКод действителен 10 минут.\nЕсли вы не запрашивали сброс пароля — проигнорируйте это письмо."
-        ))
+        )
     return {"message": "Если email зарегистрирован, код отправлен"}
 
 @app.post("/auth/reset-password")
@@ -348,7 +345,7 @@ def reset_password(data: dict):
     return {"message": "Пароль успешно изменён"}
 
 @app.post("/profile/email/send-code")
-async def send_email_code(data: dict, current_user=Depends(get_current_user)):
+async def send_email_code(data: dict, background_tasks: BackgroundTasks, current_user=Depends(get_current_user)):
     import random, smtplib, time
     from email.mime.text import MIMEText
     new_email = data.get("email", "").strip().lower()
@@ -365,11 +362,10 @@ async def send_email_code(data: dict, current_user=Depends(get_current_user)):
     smtp_email = os.getenv("SMTP_EMAIL", "")
     smtp_pass = os.getenv("SMTP_PASSWORD", "")
     print(f"[EMAIL CHANGE] Код для {new_email}: {code}")
-    asyncio.create_task(send_email_async(
-        new_email,
+    background_tasks.add_task(send_email_smtp, new_email,
         "SmartTutor — код подтверждения",
         f"Ваш код для смены email в SmartTutor: {code}\n\nКод действует 10 минут."
-    ))
+    )
     return {"message": "Код отправлен"}
 
 @app.post("/profile/email/verify-code")
