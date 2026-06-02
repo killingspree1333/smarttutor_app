@@ -86,6 +86,13 @@ button,input,textarea,select{font-family:'Outfit',sans-serif}
 .land-badge-dot{width:7px;height:7px;border-radius:50%;background:var(--ok);animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.8)}}
 @keyframes bounce{0%,100%{transform:translateY(0);opacity:0.5}50%{transform:translateY(6px);opacity:1}}
+.admin-tab{padding:8px 16px;border-radius:9px;border:none;background:none;color:var(--t3);font-family:Outfit,sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s}
+.admin-tab.active{background:var(--s1);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,0.2)}
+.admin-tag{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600}
+.admin-action{padding:4px 10px;border-radius:7px;border:1px solid var(--b1);background:var(--s2);color:var(--t2);font-size:11px;cursor:pointer;font-family:Outfit,sans-serif;transition:all 0.15s}
+.admin-action:hover{background:var(--s3);color:var(--text)}
+.admin-action.danger{border-color:rgba(255,85,102,0.3);color:var(--err)}
+.admin-action.danger:hover{background:rgba(255,85,102,0.1)}
 /* Download buttons fixed — только на лендинге */
 .dl-btns{position:fixed;top:20px;right:24px;z-index:200;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
 .dl-btns.hidden{display:none}
@@ -704,6 +711,10 @@ button,input,textarea,select{font-family:'Outfit',sans-serif}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
         Подписка
       </button>
+      <button class="nav-item" id="nav-admin" onclick="showPage('admin')" style="display:none;color:#ff9500">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Админ
+      </button>
     </div>
     <div class="sb-divider"></div>
     <div class="sb-section-title">Мои чаты</div>
@@ -1039,6 +1050,95 @@ button,input,textarea,select{font-family:'Outfit',sans-serif}
         </div>
       </div>
     </div>
+    <!-- ADMIN PAGE -->
+    <div class="page" id="page-admin">
+      <div class="prof-wrap" id="adminWrap">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+          <div style="font-size:28px">🛡️</div>
+          <div>
+            <div style="font-size:22px;font-weight:800;letter-spacing:-0.03em">Панель администратора</div>
+            <div style="font-size:13px;color:var(--t3)">Полный контроль над системой SmartTutor</div>
+          </div>
+        </div>
+
+        <!-- Статы -->
+        <div class="stats-row" id="adminStats" style="margin-bottom:24px"></div>
+
+        <!-- Вкладки -->
+        <div style="display:flex;gap:4px;background:var(--s2);border-radius:12px;padding:4px;margin-bottom:20px;width:fit-content">
+          <button class="admin-tab active" id="atab-users" onclick="switchAdminTab('users')">👥 Пользователи</button>
+          <button class="admin-tab" id="atab-logs" onclick="switchAdminTab('logs')">📋 Логи входов</button>
+          <button class="admin-tab" id="atab-cases" onclick="switchAdminTab('cases')">🧪 Тест-кейсы</button>
+        </div>
+
+        <!-- Пользователи -->
+        <div id="adminTabUsers">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <input type="text" id="userSearch" placeholder="Поиск по email или username..." oninput="filterAdminUsers(this.value)"
+              style="background:var(--s2);border:1px solid var(--b1);border-radius:10px;padding:8px 14px;color:var(--text);font-family:Outfit,sans-serif;font-size:13px;outline:none;flex:1;max-width:320px">
+          </div>
+          <div style="background:var(--s1);border:1px solid var(--b1);border-radius:14px;overflow:hidden">
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead>
+                <tr style="border-bottom:1px solid var(--b1)">
+                  <th style="padding:12px 16px;text-align:left;color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase">Пользователь</th>
+                  <th style="padding:12px 16px;text-align:left;color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase">Email</th>
+                  <th style="padding:12px 16px;text-align:center;color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase">Статус</th>
+                  <th style="padding:12px 16px;text-align:center;color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase">Роль</th>
+                  <th style="padding:12px 16px;text-align:center;color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase">Сообщ.</th>
+                  <th style="padding:12px 16px;text-align:center;color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase">Действия</th>
+                </tr>
+              </thead>
+              <tbody id="adminUsersTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Логи -->
+        <div id="adminTabLogs" style="display:none">
+          <div style="background:var(--s1);border:1px solid var(--b1);border-radius:14px;overflow:hidden">
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead>
+                <tr style="border-bottom:1px solid var(--b1)">
+                  <th style="padding:12px 16px;text-align:left;color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase">Пользователь</th>
+                  <th style="padding:12px 16px;text-align:left;color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase">IP</th>
+                  <th style="padding:12px 16px;text-align:center;color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase">Результат</th>
+                  <th style="padding:12px 16px;text-align:left;color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase">Время</th>
+                </tr>
+              </thead>
+              <tbody id="adminLogsTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Тест-кейсы -->
+        <div id="adminTabCases" style="display:none">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div style="font-size:13px;color:var(--t3)">Тест-кейсы из QA Tester одногруппника</div>
+            <div style="display:flex;gap:8px">
+              <button onclick="loadAdminCases()" style="padding:7px 14px;border-radius:8px;border:1px solid var(--b1);background:var(--s2);color:var(--t2);font-size:12px;cursor:pointer;font-family:Outfit,sans-serif">🔄 Обновить</button>
+              <button onclick="showAddCaseModal()" style="padding:7px 14px;border-radius:8px;border:none;background:var(--accent-g);color:#fff;font-size:12px;cursor:pointer;font-family:Outfit,sans-serif;font-weight:600">+ Добавить</button>
+            </div>
+          </div>
+          <div style="background:var(--s1);border:1px solid var(--b1);border-radius:14px;overflow:hidden">
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead>
+                <tr style="border-bottom:1px solid var(--b1)">
+                  <th style="padding:12px 16px;text-align:left;color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase">Название</th>
+                  <th style="padding:12px 16px;text-align:left;color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase">Проект</th>
+                  <th style="padding:12px 16px;text-align:center;color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase">Приоритет</th>
+                  <th style="padding:12px 16px;text-align:center;color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase">Статус</th>
+                  <th style="padding:12px 16px;text-align:center;color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase">Источник</th>
+                  <th style="padding:12px 16px;text-align:center;color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase">Действия</th>
+                </tr>
+              </thead>
+              <tbody id="adminCasesTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
   </main>
 </div>
 
@@ -1216,6 +1316,19 @@ function showApp(){
   document.getElementById('app').classList.add('show');
   document.getElementById('dlBtns').classList.add('hidden');
   updateSb();loadSessions();trackActivity();
+  checkAdminRole();
+}
+
+async function checkAdminRole(){
+  if(!token) return;
+  try{
+    const r=await fetch(`${API}/profile/me`,{headers:{'Authorization':'Bearer '+token}});
+    if(!r.ok) return;
+    const p=await r.json();
+    if(p.is_admin){
+      document.getElementById('nav-admin').style.display='flex';
+    }
+  }catch(e){}
 }
 
 function updateSb(){
@@ -1240,6 +1353,7 @@ function showPage(name){
   document.getElementById('nav-'+name).classList.add('active');
   if(name==='progress')loadProgress();
   if(name==='profile')loadProfile();
+  if(name==='admin')loadAdmin();
 }
 
 function notify(msg,type='ok'){
@@ -2007,6 +2121,230 @@ async function forgotSetPassword(){
       setTimeout(()=>forgotGoBack(2),1500);
     }
   }finally{btn.disabled=false;btn.textContent='Сохранить новый пароль';}
+}
+
+// ─── ADMIN ───
+let _adminUsers=[], _adminLogs=[], _adminCases=[];
+
+async function loadAdmin(){
+  if(!token) return;
+  // Загружаем статистику
+  try{
+    const r=await fetch(`${API}/admin/stats`,{headers:{'Authorization':'Bearer '+token}});
+    if(!r.ok) return;
+    const s=await r.json();
+    document.getElementById('adminStats').innerHTML=`
+      <div class="stat-box c1"><div class="stat-val">${s.total_users}</div><div class="stat-label">Пользователей</div></div>
+      <div class="stat-box c2"><div class="stat-val">${s.active_users}</div><div class="stat-label">Активных</div></div>
+      <div class="stat-box c3"><div class="stat-val">${s.total_messages}</div><div class="stat-label">Сообщений</div></div>
+      <div class="stat-box c4"><div class="stat-val">${s.total_logins}</div><div class="stat-label">Входов</div></div>
+    `;
+  }catch(e){}
+  loadAdminUsers();
+}
+
+function switchAdminTab(tab){
+  ['users','logs','cases'].forEach(t=>{
+    document.getElementById(`adminTab${t.charAt(0).toUpperCase()+t.slice(1)}`).style.display=t===tab?'block':'none';
+    document.getElementById(`atab-${t}`).classList.toggle('active',t===tab);
+  });
+  if(tab==='users') loadAdminUsers();
+  if(tab==='logs') loadAdminLogs();
+  if(tab==='cases') loadAdminCases();
+}
+
+async function loadAdminUsers(){
+  try{
+    const r=await fetch(`${API}/admin/users`,{headers:{'Authorization':'Bearer '+token}});
+    _adminUsers=await r.json();
+    renderAdminUsers(_adminUsers);
+  }catch(e){}
+}
+
+function renderAdminUsers(users){
+  const tbody=document.getElementById('adminUsersTable');
+  if(!users.length){tbody.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--t3)">Нет пользователей</td></tr>';return;}
+  tbody.innerHTML=users.map(u=>`
+    <tr style="border-bottom:1px solid var(--b1)">
+      <td style="padding:12px 16px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:32px;height:32px;border-radius:9px;background:var(--accent-g);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">
+            ${(u.username||'?').charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <div style="font-weight:600;font-size:13px">${u.username||'—'}</div>
+            <div style="font-size:11px;color:var(--t3)">${u.full_name||''}</div>
+          </div>
+        </div>
+      </td>
+      <td style="padding:12px 16px;color:var(--t2)">${u.email||'—'}</td>
+      <td style="padding:12px 16px;text-align:center">
+        <span class="admin-tag" style="background:${u.is_active?'rgba(29,216,160,0.12)':'rgba(255,85,102,0.12)'};color:${u.is_active?'var(--ok)':'var(--err)'}">
+          ${u.is_active?'Активен':'Неактивен'}
+        </span>
+      </td>
+      <td style="padding:12px 16px;text-align:center">
+        <span class="admin-tag" style="background:${u.is_admin?'rgba(255,149,0,0.15)':'var(--s2)'};color:${u.is_admin?'#ff9500':'var(--t3)'}">
+          ${u.is_admin?'🛡️ Админ':'Пользователь'}
+        </span>
+      </td>
+      <td style="padding:12px 16px;text-align:center;color:var(--t2)">${u.messages_count||0}</td>
+      <td style="padding:12px 16px;text-align:center">
+        <div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
+          <button class="admin-action" onclick="adminToggleActive(${u.id},${u.is_active})">${u.is_active?'Деактивировать':'Активировать'}</button>
+          <button class="admin-action" onclick="adminToggleAdmin(${u.id},${u.is_admin})">${u.is_admin?'Снять роль':'Сделать админом'}</button>
+          <button class="admin-action" onclick="adminResetPassword(${u.id},'${u.email}')">Сбросить пароль</button>
+          <button class="admin-action danger" onclick="adminDeleteUser(${u.id},'${u.username}')">Удалить</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function filterAdminUsers(q){
+  const filtered=_adminUsers.filter(u=>
+    (u.email||'').toLowerCase().includes(q.toLowerCase())||
+    (u.username||'').toLowerCase().includes(q.toLowerCase())
+  );
+  renderAdminUsers(filtered);
+}
+
+async function adminToggleActive(id, current){
+  await fetch(`${API}/admin/users/${id}`,{method:'PATCH',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({is_active:!current})});
+  notify(!current?'Пользователь активирован':'Пользователь деактивирован');
+  loadAdminUsers();
+}
+
+async function adminToggleAdmin(id, current){
+  await fetch(`${API}/admin/users/${id}`,{method:'PATCH',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({is_admin:!current})});
+  notify(!current?'Роль админа выдана':'Роль админа снята');
+  loadAdminUsers();
+}
+
+async function adminResetPassword(id, email){
+  const newPass=prompt(`Новый пароль для ${email}:`);
+  if(!newPass||newPass.length<6){notify('Пароль минимум 6 символов','err');return;}
+  await fetch(`${API}/admin/users/${id}`,{method:'PATCH',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({password:newPass})});
+  notify('Пароль изменён для '+email);
+}
+
+async function adminDeleteUser(id, username){
+  if(!confirm(`Удалить пользователя ${username}? Это действие нельзя отменить.`)) return;
+  await fetch(`${API}/admin/users/${id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+token}});
+  notify('Пользователь удалён');
+  loadAdminUsers();
+}
+
+async function loadAdminLogs(){
+  try{
+    const r=await fetch(`${API}/admin/logs`,{headers:{'Authorization':'Bearer '+token}});
+    _adminLogs=await r.json();
+    const tbody=document.getElementById('adminLogsTable');
+    tbody.innerHTML=_adminLogs.map(l=>`
+      <tr style="border-bottom:1px solid var(--b1)">
+        <td style="padding:10px 16px">
+          <div style="font-weight:600;font-size:13px">${l.username||'—'}</div>
+          <div style="font-size:11px;color:var(--t3)">${l.email||'—'}</div>
+        </td>
+        <td style="padding:10px 16px;color:var(--t3);font-size:12px;font-family:'JetBrains Mono',monospace">${l.ip_address||'—'}</td>
+        <td style="padding:10px 16px;text-align:center">
+          <span class="admin-tag" style="background:${l.success?'rgba(29,216,160,0.12)':'rgba(255,85,102,0.12)'};color:${l.success?'var(--ok)':'var(--err)'}">
+            ${l.success?'Успешно':'Неудача'}
+          </span>
+        </td>
+        <td style="padding:10px 16px;font-size:12px;color:var(--t3)">${l.attempted_at?new Date(l.attempted_at).toLocaleString('ru'):''}</td>
+      </tr>`).join('');
+  }catch(e){}
+}
+
+async function loadAdminCases(){
+  try{
+    const r=await fetch(`${API}/admin/test-cases`,{headers:{'Authorization':'Bearer '+token}});
+    _adminCases=await r.json();
+    const priorityColor={'critical':'#ef4444','high':'#f97316','medium':'#eab308','low':'#71717a'};
+    const statusColor={'passed':'var(--ok)','failed':'var(--err)','blocked':'var(--warn)','skipped':'var(--t3)','not_run':'var(--t4)'};
+    const tbody=document.getElementById('adminCasesTable');
+    if(!_adminCases.length){tbody.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--t3)">Тест-кейсов нет. Импортируй из QA Tester.</td></tr>';return;}
+    tbody.innerHTML=_adminCases.map(c=>`
+      <tr style="border-bottom:1px solid var(--b1)">
+        <td style="padding:10px 16px;max-width:250px">
+          <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.case_title}</div>
+          <div style="font-size:11px;color:var(--t3);margin-top:2px">${(c.description||'').substring(0,60)}${c.description&&c.description.length>60?'...':''}</div>
+        </td>
+        <td style="padding:10px 16px;color:var(--t3);font-size:12px">${c.project_name||'—'}</td>
+        <td style="padding:10px 16px;text-align:center">
+          <span class="admin-tag" style="background:${priorityColor[c.priority]||'#666'}22;color:${priorityColor[c.priority]||'var(--t3)'}">
+            ${c.priority||'medium'}
+          </span>
+        </td>
+        <td style="padding:10px 16px;text-align:center">
+          <select onchange="updateCaseStatus(${c.id},this.value)" style="background:var(--s2);border:1px solid var(--b1);border-radius:7px;padding:3px 8px;color:${statusColor[c.status]||'var(--t2)'};font-size:12px;font-family:Outfit,sans-serif;cursor:pointer">
+            ${['not_run','passed','failed','blocked','skipped'].map(s=>`<option value="${s}" ${c.status===s?'selected':''}>${s}</option>`).join('')}
+          </select>
+        </td>
+        <td style="padding:10px 16px;text-align:center">
+          <span class="admin-tag" style="background:${c.source==='qa_tester'?'rgba(109,95,255,0.12)':'var(--s2)'};color:${c.source==='qa_tester'?'var(--accent2)':'var(--t3)'}">
+            ${c.source==='qa_tester'?'QA Tester':'Вручную'}
+          </span>
+        </td>
+        <td style="padding:10px 16px;text-align:center">
+          <button class="admin-action danger" onclick="deleteCaseAdmin(${c.id})">Удалить</button>
+        </td>
+      </tr>`).join('');
+  }catch(e){}
+}
+
+async function updateCaseStatus(id, status){
+  await fetch(`${API}/admin/test-cases/${id}`,{method:'PATCH',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({status})});
+  notify('Статус обновлён');
+}
+
+async function deleteCaseAdmin(id){
+  await fetch(`${API}/admin/test-cases/${id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+token}});
+  notify('Тест-кейс удалён');
+  loadAdminCases();
+}
+
+function showAddCaseModal(){
+  const mo=document.createElement('div');mo.className='mo show';mo.style.zIndex='3000';
+  mo.innerHTML=`<div class="md" style="max-width:500px">
+    <div class="md-head"><div class="md-title">Добавить тест-кейс</div><button class="md-close" onclick="this.closest('.mo').remove()">✕</button></div>
+    <div class="fg"><label class="flabel">Название</label><input type="text" class="finput" id="nc_title" placeholder="Название тест-кейса"></div>
+    <div class="fg"><label class="flabel">Проект</label><input type="text" class="finput" id="nc_proj" placeholder="SmartTutor" value="SmartTutor"></div>
+    <div class="fg"><label class="flabel">Описание</label><textarea class="finput" id="nc_desc" placeholder="Описание..." style="min-height:60px"></textarea></div>
+    <div class="fg"><label class="flabel">Шаги</label><textarea class="finput" id="nc_steps" placeholder="1. Открыть приложение&#10;2. Войти в аккаунт..." style="min-height:80px"></textarea></div>
+    <div class="fg"><label class="flabel">Ожидаемый результат</label><textarea class="finput" id="nc_exp" placeholder="Что должно произойти..." style="min-height:60px"></textarea></div>
+    <div class="form-grid">
+      <div class="fg"><label class="flabel">Приоритет</label>
+        <select class="finput" id="nc_prio" style="padding:8px 14px">
+          <option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option><option value="critical">Critical</option>
+        </select>
+      </div>
+    </div>
+    <div class="md-actions">
+      <button class="fbtn ghost" onclick="this.closest('.mo').remove()">Отмена</button>
+      <button class="fbtn primary" onclick="submitAddCase(this)">Добавить</button>
+    </div>
+  </div>`;
+  mo.addEventListener('click',e=>{if(e.target===mo)mo.remove();});
+  document.body.appendChild(mo);
+}
+
+async function submitAddCase(btn){
+  const data={
+    project_name:document.getElementById('nc_proj').value.trim()||'SmartTutor',
+    case_title:document.getElementById('nc_title').value.trim(),
+    description:document.getElementById('nc_desc').value.trim(),
+    steps:document.getElementById('nc_steps').value.trim(),
+    expected_result:document.getElementById('nc_exp').value.trim(),
+    priority:document.getElementById('nc_prio').value,
+    source:'admin'
+  };
+  if(!data.case_title){notify('Введите название','err');return;}
+  btn.textContent='Сохраняем...';btn.disabled=true;
+  await fetch(`${API}/admin/test-cases`,{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(data)});
+  btn.closest('.mo').remove();
+  notify('Тест-кейс добавлен');
+  loadAdminCases();
 }
 
 // ─── MOBILE ───

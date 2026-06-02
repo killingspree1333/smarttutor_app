@@ -692,6 +692,157 @@ def track_activity(current_user=Depends(get_current_user)):
 def get_activity(current_user=Depends(get_current_user)):
     return sb_get("user_activity", {"user_id": current_user["id"]}) or []
 
+# ─── ADMIN ───────────────────────────────────────────────────────────────────
+
+def get_admin_user(current_user=Depends(get_current_user)):
+    if not current_user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Доступ запрещён")
+    return current_user
+
+@app.get("/admin/stats")
+def admin_stats(admin=Depends(get_admin_user)):
+    import requests as req
+    users = sb_get_all("users") or []
+    sessions = sb_get_all("chat_sessions") or []
+    messages = sb_get_all("messages") or []
+    logs = sb_get_all("login_logs") or []
+    topics = sb_get_all("topics") or []
+    test_cases = sb_get_all("test_cases") or []
+    return {
+        "total_users": len(users),
+        "active_users": len([u for u in users if u.get("is_active")]),
+        "admin_users": len([u for u in users if u.get("is_admin")]),
+        "total_sessions": len(sessions),
+        "total_messages": len(messages),
+        "total_topics": len(topics),
+        "total_logins": len(logs),
+        "successful_logins": len([l for l in logs if l.get("success")]),
+        "total_test_cases": len(test_cases),
+    }
+
+@app.get("/admin/users")
+def admin_get_users(admin=Depends(get_admin_user)):
+    users = sb_get_all("users") or []
+    result = []
+    for u in users:
+        msgs = sb_get("messages", {"user_id": u["id"]}) or []
+        result.append({
+            "id": u["id"],
+            "email": u.get("email"),
+            "username": u.get("username"),
+            "full_name": u.get("full_name"),
+            "is_active": u.get("is_active"),
+            "is_admin": u.get("is_admin", False),
+            "auth_provider": u.get("auth_provider", "email"),
+            "created_at": str(u.get("created_at", "")),
+            "messages_count": len([m for m in msgs if m.get("role") == "user"]),
+        })
+    return sorted(result, key=lambda x: x.get("created_at", ""), reverse=True)
+
+@app.patch("/admin/users/{user_id}")
+def admin_update_user(user_id: int, data: dict, admin=Depends(get_admin_user)):
+    allowed = {"is_active", "is_admin", "full_name"}
+    update = {k: v for k, v in data.items() if k in allowed}
+    if "password" in data and data["password"]:
+        update["hashed_password"] = get_password_hash(data["password"])
+    if update:
+        sb_update("users", update, {"id": user_id})
+    return {"message": "ok"}
+
+@app.delete("/admin/users/{user_id}")
+def admin_delete_user(user_id: int, admin=Depends(get_admin_user)):
+    if user_id == admin["id"]:
+        raise HTTPException(status_code=400, detail="Нельзя удалить себя")
+    sb_delete("users", {"id": user_id})
+    return {"message": "ok"}
+
+@app.get("/admin/logs")
+def admin_get_logs(admin=Depends(get_admin_user)):
+    logs = sb_get_all("login_logs") or []
+    result = []
+    for log in logs:
+        user = (sb_get("users", {"id": log.get("user_id")}) or [{}])[0]
+        result.append({
+            **log,
+            "email": user.get("email", "—"),
+            "username": user.get("username", "—"),
+        })
+    return sorted(result, key=lambda x: x.get("attempted_at", ""), reverse=True)[:200]
+
+@app.get("/admin/test-cases")
+def admin_get_test_cases(admin=Depends(get_admin_user)):
+    return sb_get_all("test_cases") or []
+
+@app.post("/admin/test-cases")
+def admin_create_test_case(data: dict, admin=Depends(get_admin_user)):
+    case = sb_insert("test_cases", {
+        "project_name": data.get("project_name", "SmartTutor"),
+        "case_title": data.get("case_title", ""),
+        "description": data.get("description", ""),
+        "steps": data.get("steps", ""),
+        "expected_result": data.get("expected_result", ""),
+        "priority": data.get("priority", "medium"),
+        "status": data.get("status", "not_run"),
+        "source": data.get("source", "admin"),
+    })
+    return case
+
+@app.patch("/admin/test-cases/{case_id}")
+def admin_update_test_case(case_id: int, data: dict, admin=Depends(get_admin_user)):
+    allowed = {"status", "case_title", "description", "steps", "expected_result", "priority"}
+    update = {k: v for k, v in data.items() if k in allowed}
+    if update:
+        sb_update("test_cases", update, {"id": case_id})
+    return {"message": "ok"}
+
+@app.delete("/admin/test-cases/{case_id}")
+def admin_delete_test_case(case_id: int, admin=Depends(get_admin_user)):
+    sb_delete("test_cases", {"id": case_id})
+    return {"message": "ok"}
+
+# ─── QA TESTER INTEGRATION ───────────────────────────────────────────────────
+
+QA_API_KEY = os.getenv("QA_API_KEY", "smarttutor_qa_key_2025")
+
+@app.post("/qa/import")
+def qa_import(data: dict):
+    """Эндпоинт для импорта тест-кейсов из приложения QA Tester одногруппника"""
+    if data.get("api_key") != QA_API_KEY:
+        raise HTTPException(status_code=401, detail="Неверный API ключ")
+    cases = data.get("cases", [])
+    project = data.get("project_name", "QA Tester Import")
+    imported = 0
+    for case in cases:
+        sb_insert("test_cases", {
+            "project_name": project,
+            "case_title": case.get("title", case.get("name", "Без названия")),
+            "description": case.get("description", ""),
+            "steps": case.get("steps", ""),
+            "expected_result": case.get("expected_result", ""),
+            "priority": case.get("priority", "medium"),
+            "status": case.get("status", "not_run"),
+            "source": "qa_tester",
+        })
+        imported += 1
+    return {"message": f"Импортировано {imported} тест-кейсов", "imported": imported}
+
+@app.get("/qa/export")
+def qa_export(api_key: str = ""):
+    """Экспорт тест-кейсов для QA Tester"""
+    if api_key != QA_API_KEY:
+        raise HTTPException(status_code=401, detail="Неверный API ключ")
+    return sb_get_all("test_cases") or []
+
+# ─── HELPERS ─────────────────────────────────────────────────────────────────
+
+def sb_get_all(table: str):
+    """Получить все записи из таблицы (без фильтра)"""
+    import requests as req
+    r = req.get(f"{SUPABASE_URL}/rest/v1/{table}", headers=HEADERS, params={"select": "*", "limit": "1000"})
+    if r.status_code == 200:
+        return r.json()
+    return []
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
