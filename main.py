@@ -168,6 +168,67 @@ def change_password(data: dict, current_user=Depends(get_current_user)):
 
 # Временное хранилище кодов (в продакшене — Redis или БД)
 _email_codes = {}
+_reset_codes = {}  # Коды сброса пароля
+
+def send_email_smtp(to_email: str, subject: str, body: str):
+    """Вспомогательная функция отправки письма"""
+    import smtplib
+    from email.mime.text import MIMEText
+    smtp_email = os.getenv("SMTP_EMAIL", "")
+    smtp_pass = os.getenv("SMTP_PASSWORD", "")
+    if smtp_email and smtp_pass:
+        msg = MIMEText(body, "plain", "utf-8")
+        msg["Subject"] = subject
+        msg["From"] = smtp_email
+        msg["To"] = to_email
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(smtp_email, smtp_pass)
+            server.send_message(msg)
+    else:
+        print(f"[DEV] Email to {to_email}: {subject}\n{body}")
+
+@app.post("/auth/forgot-password")
+async def forgot_password(data: dict):
+    import random, time
+    email = data.get("email", "").strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Введите корректный email")
+    users = sb_get("users", {"email": email})
+    # Всегда возвращаем успех чтобы не раскрывать существование email
+    if users:
+        code = str(random.randint(100000, 999999))
+        _reset_codes[email] = {"code": code, "user_id": users[0]["id"], "expires": time.time() + 600}
+        try:
+            send_email_smtp(
+                email,
+                "SmartTutor — восстановление пароля",
+                f"Ваш код для сброса пароля SmartTutor: {code}\n\nКод действителен 10 минут.\nЕсли вы не запрашивали сброс пароля — проигнорируйте это письмо."
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Ошибка отправки письма: {str(e)}")
+    return {"message": "Если email зарегистрирован, код отправлен"}
+
+@app.post("/auth/reset-password")
+def reset_password(data: dict):
+    import time
+    email = data.get("email", "").strip().lower()
+    code = data.get("code", "").strip()
+    new_password = data.get("password", "")
+    if not email or not code or not new_password:
+        raise HTTPException(status_code=400, detail="Заполните все поля")
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="Пароль минимум 6 символов")
+    stored = _reset_codes.get(email)
+    if not stored:
+        raise HTTPException(status_code=400, detail="Код не найден. Запросите новый.")
+    if time.time() > stored["expires"]:
+        del _reset_codes[email]
+        raise HTTPException(status_code=400, detail="Код истёк. Запросите новый.")
+    if stored["code"] != code:
+        raise HTTPException(status_code=400, detail="Неверный код")
+    sb_update("users", {"hashed_password": get_password_hash(new_password)}, {"id": stored["user_id"]})
+    del _reset_codes[email]
+    return {"message": "Пароль успешно изменён"}
 
 @app.post("/profile/email/send-code")
 async def send_email_code(data: dict, current_user=Depends(get_current_user)):

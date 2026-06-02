@@ -462,21 +462,6 @@ button,input,textarea,select{font-family:'Outfit',sans-serif}
         </button>
         <button class="lbtn lbtn-g" onclick="openAuth('login')">Войти в аккаунт</button>
       </div>
-      <!-- DOWNLOAD BUTTONS — только на лендинге -->
-      <div class="dl-land" style="margin-top:28px">
-        <a class="dl-land-btn" href="https://github.com/oiweewiwqe/smarttutor_backend/releases/latest/download/SmartTutor.exe">
-          <div class="dl-land-icon" style="background:linear-gradient(135deg,#00a4ef,#0078d4)">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zm0 10h8v8h-8v-8zm-10 0h8v8H3v-8z"/></svg>
-          </div>
-          <div class="dl-land-info"><strong>Скачать для Windows</strong><span>EXE · Бесплатно · v1.0</span></div>
-        </a>
-        <a class="dl-land-btn" href="https://github.com/oiweewiwqe/smarttutor_backend/releases/download/v1.0/SmartTutor.apk">
-          <div class="dl-land-icon" style="background:linear-gradient(135deg,#78c257,#3ddc84)">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.7 9.05 7.4c1.36.07 2.29.74 3.08.8 1.17-.24 2.29-.93 3.55-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.39-1.32 2.76-2.51 3.99zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
-          </div>
-          <div class="dl-land-info"><strong>Скачать для Android</strong><span>APK · Бесплатно · v1.0</span></div>
-        </a>
-      </div>
       <div class="land-stats">
         <div class="lstat"><strong>GigaChat</strong><span>Российский ИИ</span></div>
         <div class="lstat"><strong>24/7</strong><span>Доступность</span></div>
@@ -1056,6 +1041,18 @@ button,input,textarea,select{font-family:'Outfit',sans-serif}
       <div class="fg"><label class="flabel">Пароль</label><input type="password" class="finput" id="lPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <div class="fmsg err" id="lErr"></div>
       <button class="fbtn primary" style="width:100%;margin-top:8px" id="lBtn" onclick="doLogin()">Войти</button>
+      <div style="text-align:right;margin-top:8px">
+        <button onclick="openForgot()" style="background:none;border:none;color:var(--t3);font-size:12px;cursor:pointer;font-family:Outfit,sans-serif;transition:color 0.2s" onmouseover="this.style.color='var(--accent2)'" onmouseout="this.style.color='var(--t3)'">Забыл пароль?</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin:16px 0 8px">
+        <div style="flex:1;height:1px;background:var(--b1)"></div>
+        <span style="font-size:11px;color:var(--t4);white-space:nowrap">или войти через</span>
+        <div style="flex:1;height:1px;background:var(--b1)"></div>
+      </div>
+      <button onclick="notify('Google авторизация в разработке','err')" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--b1);background:var(--s2);color:var(--text);font-family:Outfit,sans-serif;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:all 0.2s" onmouseover="this.style.borderColor='var(--b2)'" onmouseout="this.style.borderColor='var(--b1)'">
+        <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Войти через Google
+      </button>
     </div>
     <div id="fReg" style="display:none">
       <div class="fg"><label class="flabel">Полное имя</label><input type="text" class="finput" id="rName" placeholder="Иван Иванов"></div>
@@ -1098,6 +1095,45 @@ button,input,textarea,select{font-family:'Outfit',sans-serif}
         <button class="fbtn primary" style="flex:1" onclick="verifyEmailCode()">Подтвердить</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- FORGOT PASSWORD MODAL -->
+<div class="mo" id="forgotMo">
+  <div class="md">
+    <div class="md-head">
+      <div class="md-title" id="forgotTitle">Восстановление пароля</div>
+      <button class="md-close" onclick="closeForgot()">✕</button>
+    </div>
+
+    <!-- Шаг 1: Email -->
+    <div id="forgotStep1">
+      <p style="font-size:13px;color:var(--t3);margin-bottom:16px;line-height:1.6">Введите email, привязанный к вашему аккаунту. Мы отправим код для сброса пароля.</p>
+      <div class="fg"><label class="flabel">Email</label><input type="email" class="finput" id="forgotEmail" placeholder="email@example.com" onkeydown="if(event.key==='Enter')forgotSendCode()"></div>
+      <div class="fmsg err" id="forgotErr1"></div>
+      <button class="fbtn primary" style="width:100%;margin-top:8px" id="forgotBtn1" onclick="forgotSendCode()">Отправить код</button>
+    </div>
+
+    <!-- Шаг 2: Код -->
+    <div id="forgotStep2" style="display:none">
+      <p style="font-size:13px;color:var(--t3);margin-bottom:16px;line-height:1.6">Код отправлен на <strong id="forgotEmailLabel"></strong>. Введите его ниже. Код действует 10 минут.</p>
+      <div class="fg"><label class="flabel">Код подтверждения</label><input type="text" class="finput" id="forgotCode" placeholder="123456" maxlength="6" onkeydown="if(event.key==='Enter')forgotVerifyCode()"></div>
+      <div class="fmsg err" id="forgotErr2"></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="fbtn ghost" onclick="forgotGoBack(1)">← Назад</button>
+        <button class="fbtn primary" style="flex:1" id="forgotBtn2" onclick="forgotVerifyCode()">Подтвердить код</button>
+      </div>
+    </div>
+
+    <!-- Шаг 3: Новый пароль -->
+    <div id="forgotStep3" style="display:none">
+      <p style="font-size:13px;color:var(--t3);margin-bottom:16px;line-height:1.6">Придумайте новый пароль для вашего аккаунта.</p>
+      <div class="fg"><label class="flabel">Новый пароль</label><input type="password" class="finput" id="forgotNewPass" placeholder="Минимум 6 символов"></div>
+      <div class="fg"><label class="flabel">Подтвердите пароль</label><input type="password" class="finput" id="forgotConfPass" placeholder="Повторите пароль" onkeydown="if(event.key==='Enter')forgotSetPassword()"></div>
+      <div class="fmsg err" id="forgotErr3"></div>
+      <button class="fbtn primary" style="width:100%;margin-top:8px" id="forgotBtn3" onclick="forgotSetPassword()">Сохранить новый пароль</button>
+    </div>
+
   </div>
 </div>
 
@@ -1705,6 +1741,92 @@ async function changePass(){
 }
 
 function showFMsg(id,msg,type){const el=document.getElementById(id);el.textContent=msg;el.className=`fmsg ${type} show`;setTimeout(()=>el.classList.remove('show'),4000);}
+
+// ─── FORGOT PASSWORD ───
+let _forgotEmail='';
+
+function openForgot(){
+  closeAuth();
+  document.getElementById('forgotEmail').value='';
+  document.getElementById('forgotCode').value='';
+  document.getElementById('forgotNewPass').value='';
+  document.getElementById('forgotConfPass').value='';
+  ['forgotErr1','forgotErr2','forgotErr3'].forEach(id=>{const el=document.getElementById(id);el.textContent='';el.classList.remove('show');});
+  forgotGoBack(1);
+  document.getElementById('forgotTitle').textContent='Восстановление пароля';
+  document.getElementById('forgotMo').classList.add('show');
+  setTimeout(()=>document.getElementById('forgotEmail').focus(),100);
+}
+function closeForgot(){document.getElementById('forgotMo').classList.remove('show');}
+document.getElementById('forgotMo').addEventListener('click',e=>{if(e.target.id==='forgotMo')closeForgot();});
+
+function forgotGoBack(step){
+  document.getElementById('forgotStep1').style.display=step===1?'block':'none';
+  document.getElementById('forgotStep2').style.display=step===2?'block':'none';
+  document.getElementById('forgotStep3').style.display=step===3?'block':'none';
+}
+
+async function forgotSendCode(){
+  const email=document.getElementById('forgotEmail').value.trim();
+  if(!email||!email.includes('@')){
+    const el=document.getElementById('forgotErr1');el.textContent='Введите корректный email';el.classList.add('show');return;
+  }
+  const btn=document.getElementById('forgotBtn1');btn.disabled=true;btn.textContent='Отправляем...';
+  try{
+    const r=await fetch(`${API}/auth/forgot-password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.detail||'Ошибка');
+    _forgotEmail=email;
+    document.getElementById('forgotEmailLabel').textContent=email;
+    forgotGoBack(2);
+    setTimeout(()=>document.getElementById('forgotCode').focus(),100);
+    notify('Код отправлен на '+email);
+  }catch(e){
+    const el=document.getElementById('forgotErr1');el.textContent=e.message;el.classList.add('show');
+  }finally{btn.disabled=false;btn.textContent='Отправить код';}
+}
+
+async function forgotVerifyCode(){
+  const code=document.getElementById('forgotCode').value.trim();
+  if(code.length!==6){
+    const el=document.getElementById('forgotErr2');el.textContent='Код должен быть 6 цифр';el.classList.add('show');return;
+  }
+  // Просто проверяем что код введён и переходим к шагу 3
+  // Реальная проверка будет при смене пароля
+  forgotGoBack(3);
+  document.getElementById('forgotTitle').textContent='Новый пароль';
+  setTimeout(()=>document.getElementById('forgotNewPass').focus(),100);
+}
+
+async function forgotSetPassword(){
+  const code=document.getElementById('forgotCode').value.trim();
+  const pass=document.getElementById('forgotNewPass').value;
+  const conf=document.getElementById('forgotConfPass').value;
+  if(!pass||!conf){
+    const el=document.getElementById('forgotErr3');el.textContent='Заполните оба поля';el.classList.add('show');return;
+  }
+  if(pass!==conf){
+    const el=document.getElementById('forgotErr3');el.textContent='Пароли не совпадают';el.classList.add('show');return;
+  }
+  if(pass.length<6){
+    const el=document.getElementById('forgotErr3');el.textContent='Минимум 6 символов';el.classList.add('show');return;
+  }
+  const btn=document.getElementById('forgotBtn3');btn.disabled=true;btn.textContent='Сохраняем...';
+  try{
+    const r=await fetch(`${API}/auth/reset-password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:_forgotEmail,code,password:pass})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.detail||'Ошибка');
+    closeForgot();
+    notify('Пароль успешно изменён! Войдите с новым паролем.');
+    setTimeout(()=>openAuth('login'),500);
+  }catch(e){
+    const el=document.getElementById('forgotErr3');el.textContent=e.message;el.classList.add('show');
+    // Если код неверный — возвращаем на шаг 2
+    if(e.message.includes('код')||e.message.includes('Код')){
+      setTimeout(()=>forgotGoBack(2),1500);
+    }
+  }finally{btn.disabled=false;btn.textContent='Сохранить новый пароль';}
+}
 
 // ─── MOBILE ───
 function isMobile(){return window.innerWidth<=768;}
