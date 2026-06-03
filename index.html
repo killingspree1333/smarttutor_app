@@ -463,7 +463,7 @@ button,input,textarea,select{font-family:'Outfit',sans-serif}
       <div class="land-badge"><div class="land-badge-dot"></div>ИИ-ассистент для студентов</div>
       <h1 class="land-title">Учись умнее<br>с <span class="land-grad">SmartTutor</span></h1>
       <p class="land-sub">Персональный ИИ-наставник который объясняет темы, даёт задания и следит за твоим прогрессом. Работает 24/7.</p>
-      <div class="land-btns">
+      <div class="land-btns" id="landAuthBtns">
         <button class="lbtn lbtn-p" onclick="openAuth('register')">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
           Начать бесплатно
@@ -1691,15 +1691,32 @@ function logout(){
 }
 
 function goToLanding(){
-  // Если залогинен — просто идём на чат, не разлогиниваем
-  if(token && user){
-    showPage('chat');
-    return;
-  }
   document.getElementById('app').classList.remove('show');
   document.getElementById('landing').classList.remove('hide');
   document.getElementById('landing').scrollTop=0;
   document.getElementById('dlBtns').classList.remove('hidden');
+  const btns=document.getElementById('landAuthBtns');
+  if(btns){
+    if(token && user){
+      btns.innerHTML=`<button class="lbtn lbtn-p" onclick="backToApp()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        Открыть приложение
+      </button>`;
+    } else {
+      btns.innerHTML=`
+        <button class="lbtn lbtn-p" onclick="openAuth('register')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          Начать бесплатно
+        </button>
+        <button class="lbtn lbtn-g" onclick="openAuth('login')">Войти в аккаунт</button>`;
+    }
+  }
+}
+
+function backToApp(){
+  document.getElementById('landing').classList.add('hide');
+  document.getElementById('app').classList.add('show');
+  showPage('chat');
 }
 
 function showFErr(id,msg){
