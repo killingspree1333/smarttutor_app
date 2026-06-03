@@ -1039,7 +1039,16 @@ def admin_ban_ip(data: dict, admin=Depends(get_admin_user)):
     reason = data.get("reason", "")
     if not ip:
         raise HTTPException(400, "Укажите IP адрес")
-    _ip_bans[ip] = {"until": _t.time() + days * 86400, "reason": reason}
+    until = int(_t.time() + days * 86400)
+    _ip_bans[ip] = {"until": until, "reason": reason}
+    try:
+        existing = sb_get("ip_bans", {"ip": ip})
+        if existing:
+            sb_update("ip_bans", {"until": until, "reason": reason}, {"ip": ip})
+        else:
+            sb_insert("ip_bans", {"ip": ip, "until": until, "reason": reason})
+    except Exception:
+        pass
     return {"message": f"IP {ip} заблокирован на {days} дн."}
 
 @app.delete("/admin/ip-bans/{ip_encoded}")
@@ -1048,6 +1057,10 @@ def admin_unban_ip(ip_encoded: str, admin=Depends(get_admin_user)):
     ip = unquote(ip_encoded)
     if ip in _ip_bans:
         del _ip_bans[ip]
+    try:
+        sb_delete("ip_bans", {"ip": ip})
+    except Exception:
+        pass
     return {"message": f"IP {ip} разблокирован"}
 
 # ─── ADMIN: ПРОМПТЫ ──────────────────────────────────────────────────────────
@@ -1079,13 +1092,29 @@ def admin_update_prompt(mode: str, data: dict, admin=Depends(get_admin_user)):
     content = data.get("content", "").strip()
     if content:
         _prompt_overrides[mode] = content
+        try:
+            existing = sb_get("prompt_overrides", {"mode": mode})
+            if existing:
+                sb_update("prompt_overrides", {"content": content}, {"mode": mode})
+            else:
+                sb_insert("prompt_overrides", {"mode": mode, "content": content})
+        except Exception:
+            pass
     else:
         _prompt_overrides.pop(mode, None)
+        try:
+            sb_delete("prompt_overrides", {"mode": mode})
+        except Exception:
+            pass
     return {"message": "Промпт сохранён" if content else "Промпт сброшен"}
 
 @app.post("/admin/prompts/{mode}/reset")
 def admin_reset_prompt(mode: str, admin=Depends(get_admin_user)):
     _prompt_overrides.pop(mode, None)
+    try:
+        sb_delete("prompt_overrides", {"mode": mode})
+    except Exception:
+        pass
     return {"message": "Промпт сброшен к исходному"}
 
 def sb_get_all(table: str):
@@ -1095,6 +1124,27 @@ def sb_get_all(table: str):
     if r.status_code == 200:
         return r.json()
     return []
+
+@app.on_event("startup")
+def load_persistent_data():
+    import time as _t
+    now = _t.time()
+    try:
+        bans = sb_get_all("ip_bans")
+        for b in bans:
+            if b.get("until", 0) > now:
+                _ip_bans[b["ip"]] = {"until": b["until"], "reason": b.get("reason", "")}
+        print(f"[STARTUP] IP банов загружено: {len(_ip_bans)}")
+    except Exception as e:
+        print(f"[STARTUP] Ошибка загрузки IP банов: {e}")
+    try:
+        overrides = sb_get_all("prompt_overrides")
+        for o in overrides:
+            if o.get("mode") and o.get("content"):
+                _prompt_overrides[o["mode"]] = o["content"]
+        print(f"[STARTUP] Промптов загружено: {len(_prompt_overrides)}")
+    except Exception as e:
+        print(f"[STARTUP] Ошибка загрузки промптов: {e}")
 
 if __name__ == "__main__":
     import uvicorn
