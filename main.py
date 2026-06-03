@@ -289,7 +289,7 @@ def login(data: UserLogin, request: Request):
 # ─── ПРОФИЛЬ ───
 @app.get("/profile/me")
 def get_profile(current_user=Depends(get_current_user)):
-    return {"id": current_user["id"], "email": current_user["email"], "username": current_user["username"], "full_name": current_user.get("full_name"), "avatar_url": current_user.get("avatar_url"), "is_active": current_user["is_active"], "created_at": str(current_user.get("created_at", "")), "auth_provider": current_user.get("auth_provider", "email")}
+    return {"id": current_user["id"], "email": current_user["email"], "username": current_user["username"], "full_name": current_user.get("full_name"), "avatar_url": current_user.get("avatar_url"), "is_active": current_user["is_active"], "is_admin": current_user.get("is_admin", False), "created_at": str(current_user.get("created_at", "")), "auth_provider": current_user.get("auth_provider", "email")}
 
 @app.put("/profile/me")
 def update_profile(data: UserProfileUpdate, current_user=Depends(get_current_user)):
