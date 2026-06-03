@@ -341,6 +341,15 @@ def change_password(data: dict, current_user=Depends(get_current_user)):
     sb_update("users", {"hashed_password": get_password_hash(password)}, {"id": current_user["id"]})
     return {"message": "ok"}
 
+@app.delete("/profile/me")
+def delete_account(current_user=Depends(get_current_user)):
+    uid = current_user["id"]
+    for table in ["messages", "topic_steps", "topics", "chat_sessions", "learning_progress", "user_activity", "login_logs", "subscriptions"]:
+        try: sb_delete(table, {"user_id": uid})
+        except Exception: pass
+    sb_delete("users", {"id": uid})
+    return {"message": "Аккаунт удалён"}
+
 # Временное хранилище кодов (в продакшене — Redis или БД)
 _email_codes = {}
 _reset_codes = {}  # Коды сброса пароля
@@ -714,6 +723,57 @@ def delete_topic(topic_id: int, current_user=Depends(get_current_user)):
     sb_delete("topic_steps", {"topic_id": topic_id})
     sb_delete("topics", {"id": topic_id})
     return {"message": "ok"}
+
+@app.post("/topics/{topic_id}/summary")
+async def get_topic_summary(topic_id: int, current_user=Depends(get_current_user)):
+    global _gigachat_token, _gigachat_token_expires
+    topics = sb_get("topics", {"id": topic_id})
+    if not topics:
+        raise HTTPException(404, "Тема не найдена")
+    topic = topics[0]
+    steps = sb_get("topic_steps", {"topic_id": topic_id}) or []
+    completed = [s["title"] for s in sorted(steps, key=lambda x: x.get("step_number", 0)) if s.get("status") == "completed"]
+    username = current_user.get("full_name") or current_user.get("username") or "студент"
+    steps_str = ", ".join(completed) if completed else "все шаги"
+    prompt = f"""Создай краткий конспект по теме "{topic['title']}" для студента {username}.
+Пройденные шаги: {steps_str}.
+
+Формат ответа:
+## Ключевые понятия
+- [3-5 главных понятий с кратким пояснением]
+
+## Главное что нужно знать
+[2-3 абзаца с самым важным]
+
+## Что ты теперь умеешь
+- [3-4 практических навыка]
+
+Пиши кратко, ёмко, на русском языке."""
+    auth_key = os.getenv("GIGACHAT_AUTH_KEY", "")
+    if not auth_key:
+        return {"summary": f"## Конспект: {topic['title']}\n\nТема успешно завершена!\n\nПройденные шаги: {steps_str}."}
+    try:
+        import uuid, time
+        now = time.time()
+        if not _gigachat_token or now >= _gigachat_token_expires:
+            tr = await httpx.AsyncClient(verify=False).post(
+                "https://ngw.devices.sberbank.ru:9443/api/v2/oauth",
+                headers={"Authorization": f"Basic {auth_key}", "Content-Type": "application/x-www-form-urlencoded", "RqUID": str(uuid.uuid4())},
+                data={"scope": "GIGACHAT_API_PERS"}, timeout=15.0
+            )
+            td = tr.json()
+            _gigachat_token = td["access_token"]
+            _gigachat_token_expires = td.get("expires_at", 0) / 1000 - 60
+        async with httpx.AsyncClient(verify=False) as client:
+            resp = await client.post(
+                "https://gigachat.devices.sberbank.ru/api/v1/chat/completions",
+                headers={"Authorization": f"Bearer {_gigachat_token}", "Content-Type": "application/json"},
+                json={"model": "GigaChat-Pro", "messages": [{"role": "user", "content": prompt}], "temperature": 0.5, "max_tokens": 1000},
+                timeout=30.0
+            )
+            return {"summary": resp.json()["choices"][0]["message"]["content"]}
+    except Exception as e:
+        return {"summary": f"## Конспект: {topic['title']}\n\nОшибка генерации: {str(e)}"}
 
 # ─── АКТИВНОСТЬ ───
 @app.post("/activity/track")

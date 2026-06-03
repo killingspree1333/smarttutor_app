@@ -783,6 +783,9 @@ button,input,textarea,select{font-family:'Outfit',sans-serif}
       <div class="chat-view" id="chatView">
         <div class="chat-topbar">
           <div class="chat-topbar-title" id="chatTitle">Новый чат</div>
+          <button class="tb-btn" onclick="exportCurrentChat()" title="Экспорт чата">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </button>
           <button class="tb-btn" onclick="renameChat()" title="Переименовать">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>
@@ -829,9 +832,21 @@ button,input,textarea,select{font-family:'Outfit',sans-serif}
           <div class="act-grid" id="actGrid"></div>
           <div class="act-weeks"><span>4 нед. назад</span><span>3 нед.</span><span>2 нед.</span><span>Сейчас</span></div>
         </div>
-        <div class="section-h">Учебные темы</div>
-        <div class="topics-grid" id="topicsGrid">
-          <div style="color:var(--t3);font-size:13px;grid-column:1/-1">Начни общаться с ИИ — темы появятся здесь</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div class="section-h" style="margin-bottom:0">Учебный раздел</div>
+          <div style="display:flex;gap:3px;background:var(--s2);padding:3px;border-radius:10px;border:1px solid var(--b1)">
+            <button id="ptab-topics" class="admin-tab active" style="font-size:12px;padding:5px 14px" onclick="switchProgressTab('topics')">📚 Темы</button>
+            <button id="ptab-achievements" class="admin-tab" style="font-size:12px;padding:5px 14px" onclick="switchProgressTab('achievements')">🏆 Достижения</button>
+          </div>
+        </div>
+        <div id="progressTabTopics">
+          <div class="topics-grid" id="topicsGrid">
+            <div style="color:var(--t3);font-size:13px;grid-column:1/-1">Начни общаться с ИИ — темы появятся здесь</div>
+          </div>
+          <div id="showMoreTopicsWrap" style="display:none;text-align:center;margin-top:14px"></div>
+        </div>
+        <div id="progressTabAchievements" style="display:none">
+          <div class="topics-grid" id="achievementsGrid"></div>
         </div>
       </div>
     </div>
@@ -994,7 +1009,7 @@ button,input,textarea,select{font-family:'Outfit',sans-serif}
               <div class="form-card-title">Опасная зона</div>
               <div style="display:flex;gap:8px">
                 <button class="fbtn danger" onclick="logout()">Выйти из аккаунта</button>
-                <button class="fbtn danger" onclick="notify('Функция в разработке','err')">Удалить аккаунт</button>
+                <button class="fbtn danger" onclick="deleteAccount()">Удалить аккаунт</button>
               </div>
             </div>
           </div>
@@ -2014,12 +2029,22 @@ function renderActivityGrid(visits){
   }
 }
 
+let _allTopicItems=[], _showAllTopics=false;
+
 function renderTopics(topics,subjects){
   const wrap=document.getElementById('topicsGrid');
-  const items=[];
-  topics.forEach(t=>items.push({id:t.id,title:t.title,subject:t.subject||t.title,status:t.status,progress:t.progress||0,steps:t.steps||[],session_id:t.session_id}));
-  subjects.forEach(s=>{if(!items.find(i=>i.subject===s.subject))items.push({id:null,title:s.subject,subject:s.subject,status:'active',progress:Math.min(90,s.questions_asked*15),steps:[]});});
-  if(!items.length){wrap.innerHTML='<div style="color:var(--t3);font-size:13px;grid-column:1/-1">Начни общаться с ИИ — темы появятся здесь</div>';return;}
+  _allTopicItems=[];
+  topics.forEach(t=>_allTopicItems.push({id:t.id,title:t.title,subject:t.subject||t.title,status:t.status,progress:t.progress||0,steps:t.steps||[],session_id:t.session_id}));
+  subjects.forEach(s=>{if(!_allTopicItems.find(i=>i.subject===s.subject))_allTopicItems.push({id:null,title:s.subject,subject:s.subject,status:'active',progress:Math.min(90,s.questions_asked*15),steps:[]});});
+  _showAllTopics=false;
+  renderTopicsGrid();
+}
+
+function renderTopicsGrid(){
+  const wrap=document.getElementById('topicsGrid');
+  const moreWrap=document.getElementById('showMoreTopicsWrap');
+  if(!_allTopicItems.length){wrap.innerHTML='<div style="color:var(--t3);font-size:13px;grid-column:1/-1">Начни общаться с ИИ — темы появятся здесь</div>';if(moreWrap)moreWrap.style.display='none';return;}
+  const items=_showAllTopics?_allTopicItems:_allTopicItems.slice(0,8);
   wrap.innerHTML=items.map(t=>`
     <div class="topic-card" onclick="${t.steps.length?`openTopicDetail(${JSON.stringify(t).replace(/"/g,'&quot;')})`:''}" style="cursor:${t.steps.length?'pointer':'default'}">
       <div class="tc-tag">${t.subject||'Общее'}</div>
@@ -2030,10 +2055,19 @@ function renderTopics(topics,subjects){
         <span>${t.status==='completed'?'✅ Завершено':'🔄 В процессе'}</span>
       </div>
       ${t.id?`<div class="tc-actions">
+        ${t.status==='completed'?`<button class="tc-act-btn" onclick="event.stopPropagation();showTopicSummary(${t.id},'${t.title.replace(/'/g,"\\'")}')">📖 Конспект</button>`:''}
         <button class="tc-act-btn" onclick="event.stopPropagation();editTopic(${t.id},'${t.title.replace(/'/g,"\\'")}')">✏️ Изменить</button>
         <button class="tc-act-btn danger" onclick="event.stopPropagation();deleteTopic(${t.id})">🗑️ Удалить</button>
       </div>`:''}
     </div>`).join('');
+  if(moreWrap){
+    if(!_showAllTopics&&_allTopicItems.length>8){
+      moreWrap.style.display='block';
+      moreWrap.innerHTML=`<button onclick="_showAllTopics=true;renderTopicsGrid()" style="padding:8px 24px;border-radius:10px;border:1px solid var(--b1);background:var(--s2);color:var(--t2);font-size:13px;cursor:pointer;font-family:Outfit,sans-serif">Показать все темы (${_allTopicItems.length})</button>`;
+    } else {
+      moreWrap.style.display='none';
+    }
+  }
 }
 
 function openTopicDetail(topic){
@@ -2736,6 +2770,123 @@ async function submitAddCase(btn){
   btn.closest('.mo').remove();
   notify('Тест-кейс добавлен');
   loadAdminCases();
+}
+
+// ─── ВКЛАДКИ ПРОГРЕССА ───
+function switchProgressTab(tab){
+  document.getElementById('progressTabTopics').style.display=tab==='topics'?'block':'none';
+  document.getElementById('progressTabAchievements').style.display=tab==='achievements'?'block':'none';
+  document.getElementById('ptab-topics').classList.toggle('active',tab==='topics');
+  document.getElementById('ptab-achievements').classList.toggle('active',tab==='achievements');
+  if(tab==='achievements') renderAchievements();
+}
+
+// ─── ДОСТИЖЕНИЯ ───
+const ACHIEVEMENTS=[
+  {id:'first_msg',icon:'💬',title:'Первый вопрос',desc:'Задай первый вопрос ИИ',check:s=>s.messages>=1},
+  {id:'msgs10',icon:'🗣️',title:'Разговорчивый',desc:'Задать 10 вопросов',check:s=>s.messages>=10},
+  {id:'msgs50',icon:'⚡',title:'Активист',desc:'Задать 50 вопросов',check:s=>s.messages>=50},
+  {id:'msgs100',icon:'🚀',title:'Марафонец',desc:'Задать 100 вопросов',check:s=>s.messages>=100},
+  {id:'first_topic',icon:'📚',title:'Первая тема',desc:'Начни первую учебную тему',check:s=>s.topics>=1},
+  {id:'first_complete',icon:'✅',title:'Завершение',desc:'Заверши первую тему',check:s=>s.completed>=1},
+  {id:'topics3',icon:'📖',title:'Студент',desc:'Завершить 3 темы',check:s=>s.completed>=3},
+  {id:'topics5',icon:'🎓',title:'Эрудит',desc:'Завершить 5 тем',check:s=>s.completed>=5},
+  {id:'topics10',icon:'🏅',title:'Мастер',desc:'Завершить 10 тем',check:s=>s.completed>=10},
+  {id:'streak3',icon:'🔥',title:'3 дня подряд',desc:'Заниматься 3 дня подряд',check:s=>s.streak>=3},
+  {id:'streak7',icon:'🏆',title:'Неделя',desc:'7 дней подряд',check:s=>s.streak>=7},
+  {id:'streak14',icon:'⭐',title:'Две недели',desc:'14 дней подряд',check:s=>s.streak>=14},
+];
+
+function renderAchievements(){
+  const grid=document.getElementById('achievementsGrid');
+  if(!grid) return;
+  const cache=window._progressCache;
+  const msgs=cache?parseInt(document.getElementById('pQ').textContent)||0:0;
+  const topics=cache?(cache.topics||[]).length:0;
+  const completed=cache?(cache.topics||[]).filter(t=>t.status==='completed').length:0;
+  const streak=parseInt(document.getElementById('pStreak').textContent)||0;
+  const stats={messages:msgs,topics,completed,streak};
+  grid.innerHTML=ACHIEVEMENTS.map(a=>{
+    const unlocked=a.check(stats);
+    return `<div class="topic-card" style="text-align:center;cursor:default;opacity:${unlocked?1:0.45};${unlocked?'border-color:rgba(109,95,255,0.35)':''}">
+      <div style="font-size:2rem;margin-bottom:8px;${unlocked?'':'filter:grayscale(1)'}">${a.icon}</div>
+      <div style="font-size:13px;font-weight:700;margin-bottom:4px">${a.title}</div>
+      <div style="font-size:11px;color:var(--t3)">${a.desc}</div>
+      ${unlocked?'<div style="margin-top:8px;font-size:11px;color:var(--ok);font-weight:600">✓ Получено</div>':'<div style="margin-top:8px;font-size:11px;color:var(--t4)">Заблокировано</div>'}
+    </div>`;
+  }).join('');
+}
+
+// ─── КОНСПЕКТ ТЕМЫ ───
+function simpleMarkdown(text){
+  return (text||'')
+    .replace(/## (.+)/g,'<div style="font-size:15px;font-weight:700;margin:16px 0 6px;color:var(--text)">$1</div>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/^- (.+)/gm,'<div style="display:flex;gap:8px;margin:3px 0"><span style="color:var(--accent);flex-shrink:0">•</span><span>$1</span></div>')
+    .replace(/\n\n/g,'<br>')
+    .replace(/\n/g,'<br>');
+}
+
+async function showTopicSummary(topicId,title){
+  const mo=document.createElement('div');mo.className='mo show';mo.style.zIndex='3000';
+  mo.innerHTML=`<div class="md" style="max-width:560px">
+    <div class="md-head"><div class="md-title">📖 Конспект: ${title}</div><button class="md-close" onclick="this.closest('.mo').remove()">✕</button></div>
+    <div id="summaryContent" style="color:var(--t2);font-size:13px;line-height:1.7;max-height:65vh;overflow-y:auto">
+      <div style="text-align:center;padding:32px;color:var(--t3)">⏳ ИИ генерирует конспект...</div>
+    </div>
+  </div>`;
+  mo.addEventListener('click',e=>{if(e.target===mo)mo.remove();});
+  document.body.appendChild(mo);
+  try{
+    const r=await fetch(`${API}/topics/${topicId}/summary`,{method:'POST',headers:{'Authorization':'Bearer '+token}});
+    const d=await r.json();
+    const el=mo.querySelector('#summaryContent');
+    if(el) el.innerHTML=simpleMarkdown(d.summary||'Не удалось сгенерировать конспект');
+  }catch(e){
+    const el=mo.querySelector('#summaryContent');
+    if(el) el.textContent='Ошибка генерации конспекта';
+  }
+}
+
+// ─── ЭКСПОРТ ЧАТА ───
+async function exportCurrentChat(){
+  if(!curSid){notify('Сначала открой чат','err');return;}
+  const title=document.getElementById('chatTitle').textContent||'chat';
+  try{
+    const r=await fetch(`${API}/chat/sessions/${curSid}/messages`,{headers:{'Authorization':'Bearer '+token}});
+    const msgs=await r.json();
+    if(!msgs.length){notify('Чат пустой','err');return;}
+    const lines=[`SmartTutor — Экспорт чата: ${title}`,`Дата: ${new Date().toLocaleDateString('ru')}`,`${'='.repeat(50)}`,''];
+    msgs.forEach(m=>{
+      lines.push(m.role==='user'?'[Вы]:':'[SmartTutor]:');
+      lines.push(m.content||'');
+      lines.push('');
+    });
+    const blob=new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=`chat_${title.replace(/[^\wа-яё]/gi,'_').slice(0,30)}_${new Date().toISOString().split('T')[0]}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    notify('Чат экспортирован');
+  }catch(e){notify('Ошибка экспорта','err');}
+}
+
+// ─── УДАЛЕНИЕ АККАУНТА ───
+function deleteAccount(){
+  showConfirm({
+    icon:'🗑️',
+    title:'Удалить аккаунт?',
+    text:'Все чаты, темы и прогресс будут удалены навсегда. Это действие нельзя отменить.',
+    onConfirm:async()=>{
+      try{
+        await fetch(`${API}/profile/me`,{method:'DELETE',headers:{'Authorization':'Bearer '+token}});
+        notify('Аккаунт удалён');
+        setTimeout(()=>logout(),1200);
+      }catch(e){notify('Ошибка удаления','err');}
+    }
+  });
 }
 
 // ─── ПРОМПТЫ ───
