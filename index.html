@@ -1050,10 +1050,135 @@ button,input,textarea,select{font-family:'Outfit',sans-serif}
         <div class="stats-row" id="adminStats" style="margin-bottom:24px"></div>
 
         <!-- Вкладки -->
-        <div style="display:flex;gap:4px;background:var(--s2);border-radius:12px;padding:4px;margin-bottom:20px;width:fit-content">
+        <div style="display:flex;gap:4px;background:var(--s2);border-radius:12px;padding:4px;margin-bottom:20px;flex-wrap:wrap">
           <button class="admin-tab active" id="atab-users" onclick="switchAdminTab('users')">👥 Пользователи</button>
-          <button class="admin-tab" id="atab-logs" onclick="switchAdminTab('logs')">📋 Логи входов</button>
+          <button class="admin-tab" id="atab-analytics" onclick="switchAdminTab('analytics')">📊 Аналитика</button>
+          <button class="admin-tab" id="atab-subs" onclick="switchAdminTab('subs')">👑 Подписки</button>
+          <button class="admin-tab" id="atab-mail" onclick="switchAdminTab('mail')">📢 Рассылка</button>
+          <button class="admin-tab" id="atab-logs" onclick="switchAdminTab('logs')">📋 Логи</button>
           <button class="admin-tab" id="atab-cases" onclick="switchAdminTab('cases')">🧪 Тест-кейсы</button>
+          <button class="admin-tab" id="atab-export" onclick="switchAdminTab('export')">📤 Экспорт</button>
+          <button class="admin-tab" id="atab-settings" onclick="switchAdminTab('settings')">⚙️ Настройки</button>
+        </div>
+
+        <!-- Аналитика -->
+        <div id="adminTabAnalytics" style="display:none">
+          <div class="stats-row" id="analyticsStats" style="margin-bottom:20px"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+            <div class="activity-card">
+              <div class="act-header"><div class="act-title">📈 Регистрации (14 дней)</div></div>
+              <div id="chartReg" style="display:flex;align-items:flex-end;gap:4px;height:80px"></div>
+              <div id="chartRegLabels" style="display:flex;gap:4px;margin-top:6px;font-size:9px;color:var(--t4)"></div>
+            </div>
+            <div class="activity-card">
+              <div class="act-header"><div class="act-title">💬 Сообщения (14 дней)</div></div>
+              <div id="chartMsg" style="display:flex;align-items:flex-end;gap:4px;height:80px"></div>
+              <div id="chartMsgLabels" style="display:flex;gap:4px;margin-top:6px;font-size:9px;color:var(--t4)"></div>
+            </div>
+          </div>
+          <div class="activity-card">
+            <div class="act-header"><div class="act-title">🔥 Топ тем обучения</div></div>
+            <div id="topTopics"></div>
+          </div>
+        </div>
+
+        <!-- Подписки -->
+        <div id="adminTabSubs" style="display:none">
+          <div style="background:var(--s1);border:1px solid var(--b1);border-radius:14px;overflow:hidden">
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead><tr style="border-bottom:1px solid var(--b1)">
+                <th style="padding:12px 16px;text-align:left;color:var(--t3);font-size:11px;text-transform:uppercase">Пользователь</th>
+                <th style="padding:12px 16px;text-align:center;color:var(--t3);font-size:11px;text-transform:uppercase">Текущий план</th>
+                <th style="padding:12px 16px;text-align:center;color:var(--t3);font-size:11px;text-transform:uppercase">Изменить план</th>
+                <th style="padding:12px 16px;text-align:left;color:var(--t3);font-size:11px;text-transform:uppercase">Дата</th>
+              </tr></thead>
+              <tbody id="adminSubsTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Рассылка -->
+        <div id="adminTabMail" style="display:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="form-card">
+              <div class="form-card-title">📢 Рассылка всем пользователям</div>
+              <div class="fg"><label class="flabel">Кому</label>
+                <select class="finput" id="broadcastTarget" style="padding:8px 14px">
+                  <option value="all">Все пользователи</option>
+                  <option value="active">Только активные</option>
+                </select>
+              </div>
+              <div class="fg"><label class="flabel">Тема письма</label><input type="text" class="finput" id="broadcastSubject" placeholder="Тема..."></div>
+              <div class="fg"><label class="flabel">Текст письма</label><textarea class="finput" id="broadcastBody" style="min-height:120px" placeholder="Текст сообщения..."></textarea></div>
+              <button class="fbtn primary" onclick="sendBroadcast()" style="width:100%">Отправить рассылку</button>
+              <div class="fmsg" id="broadcastMsg"></div>
+            </div>
+            <div class="form-card">
+              <div class="form-card-title">✉️ Письмо конкретному пользователю</div>
+              <div class="fg"><label class="flabel">Email получателя</label><input type="email" class="finput" id="singleTo" placeholder="user@email.com"></div>
+              <div class="fg"><label class="flabel">Тема</label><input type="text" class="finput" id="singleSubject" placeholder="Тема..."></div>
+              <div class="fg"><label class="flabel">Текст</label><textarea class="finput" id="singleBody" style="min-height:120px" placeholder="Текст сообщения..."></textarea></div>
+              <button class="fbtn primary" onclick="sendSingleEmail()" style="width:100%">Отправить письмо</button>
+              <div class="fmsg" id="singleMsg"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Экспорт -->
+        <div id="adminTabExport" style="display:none">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+            <div class="form-card" style="text-align:center">
+              <div style="font-size:2.5rem;margin-bottom:12px">👥</div>
+              <div style="font-size:15px;font-weight:700;margin-bottom:8px">Пользователи</div>
+              <div style="font-size:12px;color:var(--t3);margin-bottom:16px">Полный список всех аккаунтов с ролями и датами регистрации</div>
+              <button class="fbtn primary" style="width:100%" onclick="exportData('users')">⬇ Скачать CSV</button>
+            </div>
+            <div class="form-card" style="text-align:center">
+              <div style="font-size:2.5rem;margin-bottom:12px">📋</div>
+              <div style="font-size:15px;font-weight:700;margin-bottom:8px">Логи входов</div>
+              <div style="font-size:12px;color:var(--t3);margin-bottom:16px">История всех попыток входа с IP-адресами и результатами</div>
+              <button class="fbtn primary" style="width:100%" onclick="exportData('logs')">⬇ Скачать CSV</button>
+            </div>
+            <div class="form-card" style="text-align:center">
+              <div style="font-size:2.5rem;margin-bottom:12px">📊</div>
+              <div style="font-size:15px;font-weight:700;margin-bottom:8px">Статистика</div>
+              <div style="font-size:12px;color:var(--t3);margin-bottom:16px">Сводные метрики системы: пользователи, сообщения, темы</div>
+              <button class="fbtn primary" style="width:100%" onclick="exportData('stats')">⬇ Скачать CSV</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Настройки -->
+        <div id="adminTabSettings" style="display:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="form-card">
+              <div class="form-card-title">🔧 Системные настройки</div>
+              <div style="display:flex;flex-direction:column;gap:16px">
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--s2);border-radius:10px">
+                  <div><div style="font-size:13px;font-weight:600">Регистрация новых пользователей</div><div style="font-size:11px;color:var(--t3)">Разрешить/запретить создание новых аккаунтов</div></div>
+                  <label style="position:relative;width:44px;height:24px;cursor:pointer;flex-shrink:0">
+                    <input type="checkbox" id="settingReg" onchange="saveSetting('registration_enabled',this.checked)" style="opacity:0;width:0;height:0">
+                    <span id="toggleReg" style="position:absolute;inset:0;border-radius:12px;background:var(--b1);transition:0.3s"></span>
+                  </label>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--s2);border-radius:10px">
+                  <div><div style="font-size:13px;font-weight:600">Режим обслуживания</div><div style="font-size:11px;color:var(--err)">Отключает доступ для всех кроме администратора</div></div>
+                  <label style="position:relative;width:44px;height:24px;cursor:pointer;flex-shrink:0">
+                    <input type="checkbox" id="settingMaint" onchange="saveSetting('maintenance_mode',this.checked)" style="opacity:0;width:0;height:0">
+                    <span id="toggleMaint" style="position:absolute;inset:0;border-radius:12px;background:var(--b1);transition:0.3s"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div class="form-card">
+              <div class="form-card-title">🤖 Настройки ИИ</div>
+              <div class="fg"><label class="flabel">GigaChat температура (0.1 — 1.0)</label><input type="number" class="finput" id="settingTemp" min="0.1" max="1.0" step="0.1" placeholder="0.7"></div>
+              <div class="fg"><label class="flabel">Макс. токенов в ответе</label><input type="number" class="finput" id="settingTokens" min="500" max="4000" step="100" placeholder="2000"></div>
+              <div class="fg"><label class="flabel">QA API ключ</label><input type="text" class="finput" id="settingQaKey" placeholder="smarttutor_qa_2025"></div>
+              <button class="fbtn primary" onclick="saveAllSettings()" style="width:100%;margin-top:4px">Сохранить настройки</button>
+              <div class="fmsg" id="settingsMsg"></div>
+            </div>
+          </div>
         </div>
 
         <!-- Пользователи -->
@@ -2130,13 +2255,176 @@ async function loadAdmin(){
 }
 
 function switchAdminTab(tab){
-  ['users','logs','cases'].forEach(t=>{
-    document.getElementById(`adminTab${t.charAt(0).toUpperCase()+t.slice(1)}`).style.display=t===tab?'block':'none';
-    document.getElementById(`atab-${t}`).classList.toggle('active',t===tab);
+  ['users','analytics','subs','mail','logs','cases','export','settings'].forEach(t=>{
+    const el=document.getElementById(`adminTab${t.charAt(0).toUpperCase()+t.slice(1)}`);
+    if(el) el.style.display=t===tab?'block':'none';
+    const btn=document.getElementById(`atab-${t}`);
+    if(btn) btn.classList.toggle('active',t===tab);
   });
   if(tab==='users') loadAdminUsers();
+  if(tab==='analytics') loadAdminAnalytics();
+  if(tab==='subs') loadAdminSubs();
   if(tab==='logs') loadAdminLogs();
   if(tab==='cases') loadAdminCases();
+  if(tab==='settings') loadAdminSettings();
+}
+
+// ─── АНАЛИТИКА ───
+async function loadAdminAnalytics(){
+  try{
+    const r=await fetch(`${API}/admin/analytics`,{headers:{'Authorization':'Bearer '+token}});
+    const d=await r.json();
+    document.getElementById('analyticsStats').innerHTML=`
+      <div class="stat-box c1"><div class="stat-val">${d.total_users}</div><div class="stat-label">Пользователей</div></div>
+      <div class="stat-box c2"><div class="stat-val">${d.total_messages}</div><div class="stat-label">Сообщений</div></div>
+      <div class="stat-box c3"><div class="stat-val">${d.total_topics}</div><div class="stat-label">Тем создано</div></div>
+      <div class="stat-box c4"><div class="stat-val">${d.total_sessions}</div><div class="stat-label">Сессий чата</div></div>
+    `;
+    renderBarChart('chartReg','chartRegLabels', d.registrations_by_day, 'var(--accent)');
+    renderBarChart('chartMsg','chartMsgLabels', d.messages_by_day, 'var(--ok)');
+    const topEl=document.getElementById('topTopics');
+    if(!d.top_topics.length){topEl.innerHTML='<div style="color:var(--t3);font-size:13px;padding:8px">Пока нет данных</div>';return;}
+    const max=d.top_topics[0].count||1;
+    topEl.innerHTML=d.top_topics.map(t=>`
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--b1)">
+        <div style="flex:1;font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.name}</div>
+        <div style="width:140px;height:8px;background:var(--s3);border-radius:4px;overflow:hidden">
+          <div style="height:100%;width:${Math.round(t.count/max*100)}%;background:var(--accent-g);border-radius:4px"></div>
+        </div>
+        <div style="font-size:12px;color:var(--t3);min-width:30px;text-align:right">${t.count}</div>
+      </div>`).join('');
+  }catch(e){}
+}
+
+function renderBarChart(barId, labelId, data, color){
+  const vals=Object.values(data);
+  const keys=Object.keys(data);
+  const max=Math.max(...vals,1);
+  const barEl=document.getElementById(barId);
+  const lblEl=document.getElementById(labelId);
+  barEl.innerHTML=vals.map(v=>`
+    <div style="flex:1;background:${color};border-radius:3px 3px 0 0;height:${Math.max(4,Math.round(v/max*76))}px;opacity:${v>0?1:0.2};transition:height 0.3s" title="${v}"></div>
+  `).join('');
+  lblEl.innerHTML=keys.map(k=>`<span style="flex:1;text-align:center;overflow:hidden">${k.slice(5)}</span>`).join('');
+}
+
+// ─── ПОДПИСКИ ───
+async function loadAdminSubs(){
+  try{
+    const r=await fetch(`${API}/admin/subscriptions`,{headers:{'Authorization':'Bearer '+token}});
+    const subs=await r.json();
+    const planColor={'free':'var(--t3)','pro':'var(--accent2)','premium':'#ff9500'};
+    document.getElementById('adminSubsTable').innerHTML=subs.map(s=>`
+      <tr style="border-bottom:1px solid var(--b1)">
+        <td style="padding:10px 16px">
+          <div style="font-weight:600;font-size:13px">${s.username||'—'}</div>
+          <div style="font-size:11px;color:var(--t3)">${s.email||'—'}</div>
+        </td>
+        <td style="padding:10px 16px;text-align:center">
+          <span class="admin-tag" style="color:${planColor[s.plan]||'var(--t3)'};background:rgba(109,95,255,0.1)">${(s.plan||'free').toUpperCase()}</span>
+        </td>
+        <td style="padding:10px 16px;text-align:center">
+          <select onchange="setUserPlan(${s.user_id},this.value)" style="background:var(--s2);border:1px solid var(--b1);border-radius:7px;padding:4px 8px;font-size:12px;font-family:Outfit,sans-serif;cursor:pointer;color:var(--text)">
+            <option value="free" ${s.plan==='free'?'selected':''}>Free</option>
+            <option value="pro" ${s.plan==='pro'?'selected':''}>Pro</option>
+            <option value="premium" ${s.plan==='premium'?'selected':''}>Premium</option>
+          </select>
+        </td>
+        <td style="padding:10px 16px;font-size:12px;color:var(--t3)">${s.started_at?new Date(s.started_at).toLocaleDateString('ru'):''}</td>
+      </tr>`).join('');
+  }catch(e){}
+}
+
+async function setUserPlan(userId, plan){
+  await fetch(`${API}/admin/subscriptions/${userId}`,{method:'PATCH',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({plan})});
+  notify(`Подписка изменена на ${plan.toUpperCase()}`);
+}
+
+// ─── РАССЫЛКА ───
+async function sendBroadcast(){
+  const subject=document.getElementById('broadcastSubject').value.trim();
+  const body=document.getElementById('broadcastBody').value.trim();
+  const target=document.getElementById('broadcastTarget').value;
+  if(!subject||!body){notify('Заполни тему и текст','err');return;}
+  if(!confirm(`Отправить рассылку (${target==='all'?'всем':'активным'})? Это нельзя отменить.`)) return;
+  const r=await fetch(`${API}/admin/broadcast`,{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({subject,body,target})});
+  const d=await r.json();
+  const msg=document.getElementById('broadcastMsg');
+  msg.textContent=d.message;msg.className='fmsg ok show';
+  setTimeout(()=>msg.classList.remove('show'),5000);
+}
+
+async function sendSingleEmail(){
+  const to=document.getElementById('singleTo').value.trim();
+  const subject=document.getElementById('singleSubject').value.trim();
+  const body=document.getElementById('singleBody').value.trim();
+  if(!to||!subject||!body){notify('Заполни все поля','err');return;}
+  const r=await fetch(`${API}/admin/send-email`,{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({to,subject,body})});
+  const d=await r.json();
+  const msg=document.getElementById('singleMsg');
+  msg.textContent=d.message;msg.className='fmsg ok show';
+  setTimeout(()=>msg.classList.remove('show'),4000);
+}
+
+// ─── ЭКСПОРТ ───
+function exportData(type){
+  const url=`${API}/admin/export/${type}`;
+  const a=document.createElement('a');
+  a.href=url+'?token='+encodeURIComponent(token);
+  // Используем fetch для скачивания с авторизацией
+  fetch(url,{headers:{'Authorization':'Bearer '+token}})
+    .then(r=>r.blob())
+    .then(blob=>{
+      const u=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=u;a.download=`smarttutor_${type}.csv`;a.click();
+      URL.revokeObjectURL(u);
+      notify(`Экспорт ${type} скачан`);
+    });
+}
+
+// ─── НАСТРОЙКИ ───
+async function loadAdminSettings(){
+  try{
+    const r=await fetch(`${API}/admin/settings`,{headers:{'Authorization':'Bearer '+token}});
+    const s=await r.json();
+    const regCb=document.getElementById('settingReg');
+    const maintCb=document.getElementById('settingMaint');
+    if(regCb){
+      regCb.checked=s.registration_enabled;
+      document.getElementById('toggleReg').style.background=s.registration_enabled?'var(--ok)':'var(--b1)';
+    }
+    if(maintCb){
+      maintCb.checked=s.maintenance_mode;
+      document.getElementById('toggleMaint').style.background=s.maintenance_mode?'var(--err)':'var(--b1)';
+    }
+    const temp=document.getElementById('settingTemp');
+    const tok=document.getElementById('settingTokens');
+    const qa=document.getElementById('settingQaKey');
+    if(temp) temp.value=s.gigachat_temperature||0.7;
+    if(tok) tok.value=s.max_tokens||2000;
+    if(qa) qa.value=s.qa_api_key||'';
+  }catch(e){}
+}
+
+async function saveSetting(key, value){
+  await fetch(`${API}/admin/settings`,{method:'PATCH',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({[key]:value})});
+  const toggleId=key==='registration_enabled'?'toggleReg':key==='maintenance_mode'?'toggleMaint':null;
+  if(toggleId){
+    const color=key==='maintenance_mode'?(value?'var(--err)':'var(--b1)'):(value?'var(--ok)':'var(--b1)');
+    document.getElementById(toggleId).style.background=color;
+  }
+  notify(value?`${key} включено`:`${key} выключено`);
+}
+
+async function saveAllSettings(){
+  const temp=parseFloat(document.getElementById('settingTemp').value)||0.7;
+  const tok=parseInt(document.getElementById('settingTokens').value)||2000;
+  const qa=document.getElementById('settingQaKey').value.trim();
+  await fetch(`${API}/admin/settings`,{method:'PATCH',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({gigachat_temperature:temp,max_tokens:tok,qa_api_key:qa})});
+  const msg=document.getElementById('settingsMsg');
+  msg.textContent='Настройки сохранены';msg.className='fmsg ok show';
+  setTimeout(()=>msg.classList.remove('show'),3000);
 }
 
 async function loadAdminUsers(){

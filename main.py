@@ -11,6 +11,15 @@ from models import UserRegister, UserLogin, TokenResponse, UserProfileUpdate, Me
 
 load_dotenv()
 
+# ─── Системные настройки (хранятся в памяти) ───────────────────────────────
+_system_settings = {
+    "registration_enabled": True,
+    "maintenance_mode": False,
+    "qa_api_key": os.getenv("QA_API_KEY", "smarttutor_qa_2025"),
+    "gigachat_temperature": 0.7,
+    "max_tokens": 2000,
+}
+
 app = FastAPI(title="SmartTutor API", version="2.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -128,9 +137,18 @@ def favicon():
 _verify_codes = {}   # Верификация email при регистрации
 
 # ─── АВТОРИЗАЦИЯ ───
+@app.middleware("http")
+async def maintenance_middleware(request, call_next):
+    if _system_settings.get("maintenance_mode") and not request.url.path.startswith("/admin") and request.url.path not in ["/", "/health", "/favicon.png"]:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"detail": "Сервис на техническом обслуживании. Попробуйте позже."}, status_code=503)
+    return await call_next(request)
+
 @app.post("/auth/register")
 async def register(data: UserRegister, request: Request, background_tasks: BackgroundTasks):
     import random, time
+    if not _system_settings.get("registration_enabled", True):
+        raise HTTPException(status_code=403, detail="Регистрация временно отключена администратором")
     existing = sb_get("users", {"email": data.email})
     if existing:
         if existing[0].get("is_active"):
@@ -834,6 +852,154 @@ def qa_export(api_key: str = ""):
     return sb_get_all("test_cases") or []
 
 # ─── HELPERS ─────────────────────────────────────────────────────────────────
+
+# ─── ADMIN: АНАЛИТИКА ────────────────────────────────────────────────────────
+
+@app.get("/admin/analytics")
+def admin_analytics(admin=Depends(get_admin_user)):
+    from datetime import datetime, timedelta
+    users = sb_get_all("users") or []
+    messages = sb_get_all("messages") or []
+    topics = sb_get_all("topics") or []
+    sessions = sb_get_all("chat_sessions") or []
+
+    # Регистрации по дням (14 дней)
+    reg_by_day = {}
+    msg_by_day = {}
+    today = datetime.utcnow().date()
+    for i in range(13, -1, -1):
+        d = str(today - timedelta(days=i))
+        reg_by_day[d] = 0
+        msg_by_day[d] = 0
+
+    for u in users:
+        d = str(u.get("created_at", ""))[:10]
+        if d in reg_by_day:
+            reg_by_day[d] += 1
+
+    for m in messages:
+        if m.get("role") == "user":
+            d = str(m.get("created_at", ""))[:10]
+            if d in msg_by_day:
+                msg_by_day[d] += 1
+
+    # Топ тем
+    topic_counts = {}
+    for t in topics:
+        name = t.get("subject") or t.get("title", "—")
+        topic_counts[name] = topic_counts.get(name, 0) + 1
+    top_topics = sorted(topic_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+
+    return {
+        "registrations_by_day": reg_by_day,
+        "messages_by_day": msg_by_day,
+        "top_topics": [{"name": k, "count": v} for k, v in top_topics],
+        "total_users": len(users),
+        "total_messages": len([m for m in messages if m.get("role") == "user"]),
+        "total_topics": len(topics),
+        "total_sessions": len([s for s in sessions if not s.get("is_deleted")]),
+    }
+
+# ─── ADMIN: ПОДПИСКИ ─────────────────────────────────────────────────────────
+
+@app.get("/admin/subscriptions")
+def admin_get_subscriptions(admin=Depends(get_admin_user)):
+    subs = sb_get_all("subscriptions") or []
+    result = []
+    for s in subs:
+        user = (sb_get("users", {"id": s.get("user_id")}) or [{}])[0]
+        result.append({**s, "email": user.get("email","—"), "username": user.get("username","—")})
+    return sorted(result, key=lambda x: x.get("started_at",""), reverse=True)
+
+@app.patch("/admin/subscriptions/{user_id}")
+def admin_set_subscription(user_id: int, data: dict, admin=Depends(get_admin_user)):
+    plan = data.get("plan", "free")
+    existing = sb_get("subscriptions", {"user_id": user_id})
+    if existing:
+        sb_update("subscriptions", {"plan": plan, "is_active": True}, {"user_id": user_id})
+    else:
+        sb_insert("subscriptions", {"user_id": user_id, "plan": plan, "is_active": True})
+    return {"message": f"Подписка пользователя изменена на {plan}"}
+
+# ─── ADMIN: РАССЫЛКА ─────────────────────────────────────────────────────────
+
+@app.post("/admin/broadcast")
+async def admin_broadcast(data: dict, background_tasks: BackgroundTasks, admin=Depends(get_admin_user)):
+    subject = data.get("subject", "Сообщение от SmartTutor")
+    body = data.get("body", "")
+    target = data.get("target", "all")  # all / active / pro
+    if not body:
+        raise HTTPException(400, "Текст письма не может быть пустым")
+    users = sb_get_all("users") or []
+    if target == "active":
+        users = [u for u in users if u.get("is_active")]
+    emails = [u["email"] for u in users if u.get("email")]
+    for email in emails:
+        background_tasks.add_task(send_email_smtp, email, subject, body)
+    return {"message": f"Рассылка запущена для {len(emails)} пользователей", "count": len(emails)}
+
+@app.post("/admin/send-email")
+async def admin_send_email(data: dict, background_tasks: BackgroundTasks, admin=Depends(get_admin_user)):
+    to = data.get("to", "")
+    subject = data.get("subject", "Сообщение от SmartTutor")
+    body = data.get("body", "")
+    if not to or not body:
+        raise HTTPException(400, "Укажите получателя и текст")
+    background_tasks.add_task(send_email_smtp, to, subject, body)
+    return {"message": f"Письмо отправлено на {to}"}
+
+# ─── ADMIN: ЭКСПОРТ ──────────────────────────────────────────────────────────
+
+@app.get("/admin/export/users")
+def admin_export_users(admin=Depends(get_admin_user)):
+    from fastapi.responses import Response
+    users = sb_get_all("users") or []
+    lines = ["ID,Email,Username,FullName,IsActive,IsAdmin,AuthProvider,CreatedAt"]
+    for u in users:
+        lines.append(f'"{u.get("id","")}","{u.get("email","")}","{u.get("username","")}","{u.get("full_name","")}",{u.get("is_active","")},{u.get("is_admin","")},{u.get("auth_provider","email")},"{str(u.get("created_at",""))[:10]}"')
+    csv = "\n".join(lines)
+    return Response(content="﻿"+csv, media_type="text/csv; charset=utf-8", headers={"Content-Disposition":"attachment; filename=smarttutor_users.csv"})
+
+@app.get("/admin/export/logs")
+def admin_export_logs(admin=Depends(get_admin_user)):
+    from fastapi.responses import Response
+    logs = sb_get_all("login_logs") or []
+    lines = ["ID,UserID,IP,Success,AttemptedAt"]
+    for l in logs:
+        lines.append(f'"{l.get("id","")}","{l.get("user_id","")}","{l.get("ip_address","")}",{l.get("success","")},"{str(l.get("attempted_at",""))[:19]}"')
+    csv = "\n".join(lines)
+    return Response(content="﻿"+csv, media_type="text/csv; charset=utf-8", headers={"Content-Disposition":"attachment; filename=smarttutor_logs.csv"})
+
+@app.get("/admin/export/stats")
+def admin_export_stats(admin=Depends(get_admin_user)):
+    from fastapi.responses import Response
+    users = sb_get_all("users") or []
+    messages = sb_get_all("messages") or []
+    topics = sb_get_all("topics") or []
+    lines = [
+        "Метрика,Значение",
+        f"Всего пользователей,{len(users)}",
+        f"Активных пользователей,{len([u for u in users if u.get('is_active')])}",
+        f"Всего сообщений,{len([m for m in messages if m.get('role')=='user'])}",
+        f"Всего тем,{len(topics)}",
+        f"Завершённых тем,{len([t for t in topics if t.get('status')=='completed'])}",
+    ]
+    csv = "\n".join(lines)
+    return Response(content="﻿"+csv, media_type="text/csv; charset=utf-8", headers={"Content-Disposition":"attachment; filename=smarttutor_stats.csv"})
+
+# ─── ADMIN: НАСТРОЙКИ ────────────────────────────────────────────────────────
+
+@app.get("/admin/settings")
+def admin_get_settings(admin=Depends(get_admin_user)):
+    return _system_settings
+
+@app.patch("/admin/settings")
+def admin_update_settings(data: dict, admin=Depends(get_admin_user)):
+    allowed = {"registration_enabled","maintenance_mode","qa_api_key","gigachat_temperature","max_tokens"}
+    for key in allowed:
+        if key in data:
+            _system_settings[key] = data[key]
+    return _system_settings
 
 def sb_get_all(table: str):
     """Получить все записи из таблицы (без фильтра)"""
