@@ -19,6 +19,8 @@ _system_settings = {
     "gigachat_temperature": 0.7,
     "max_tokens": 2000,
 }
+_ip_bans = {}       # {ip: {"until": timestamp, "reason": ""}}
+_prompt_overrides = {}  # {mode: custom_text}
 
 app = FastAPI(title="SmartTutor API", version="2.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
@@ -53,6 +55,11 @@ def detect_mode(content: str, is_topic_chat: bool, current_step: int, total_step
 
 def get_system_prompt(mode: str, **kwargs) -> str:
     """Возвращает нужный промпт для режима"""
+    if mode in _prompt_overrides and _prompt_overrides[mode]:
+        p = _prompt_overrides[mode]
+        p = p.replace("{username}", kwargs.get("username", "студент"))
+        p = p.replace("{topic_title}", kwargs.get("topic_title", ""))
+        return p
     username = kwargs.get("username", "студент")
     topic_title = kwargs.get("topic_title", "")
 
@@ -139,6 +146,18 @@ _verify_codes = {}   # Верификация email при регистраци�
 # ─── АВТОРИЗАЦИЯ ───
 @app.middleware("http")
 async def maintenance_middleware(request, call_next):
+    import time as _t
+    client_ip = request.client.host if request.client else ""
+    if client_ip and client_ip in _ip_bans:
+        ban = _ip_bans[client_ip]
+        if ban.get("until", 0) > _t.time():
+            if not request.url.path.startswith("/admin") and request.url.path not in ["/auth/login"]:
+                from fastapi.responses import JSONResponse
+                from datetime import datetime as _dt
+                until_str = _dt.utcfromtimestamp(ban["until"]).strftime("%d.%m.%Y")
+                return JSONResponse({"detail": f"Ваш IP заблокирован до {until_str}. Причина: {ban.get('reason','—')}"}, status_code=403)
+        else:
+            del _ip_bans[client_ip]
     if _system_settings.get("maintenance_mode") and not request.url.path.startswith("/admin") and request.url.path not in ["/", "/health", "/favicon.png"]:
         from fastapi.responses import JSONResponse
         return JSONResponse({"detail": "Сервис на техническом обслуживании. Попробуйте позже."}, status_code=503)
@@ -1000,6 +1019,74 @@ def admin_update_settings(data: dict, admin=Depends(get_admin_user)):
         if key in data:
             _system_settings[key] = data[key]
     return _system_settings
+
+# ─── ADMIN: IP БАНЫ ──────────────────────────────────────────────────────────
+
+@app.get("/admin/ip-bans")
+def admin_get_ip_bans(admin=Depends(get_admin_user)):
+    import time as _t
+    now = _t.time()
+    expired = [ip for ip, v in list(_ip_bans.items()) if v.get("until", 0) <= now]
+    for ip in expired:
+        del _ip_bans[ip]
+    return [{"ip": ip, "until": int(v["until"]), "reason": v.get("reason", ""), "days_left": max(0, round((v["until"] - now) / 86400, 1))} for ip, v in _ip_bans.items()]
+
+@app.post("/admin/ip-bans")
+def admin_ban_ip(data: dict, admin=Depends(get_admin_user)):
+    import time as _t
+    ip = data.get("ip", "").strip()
+    days = max(1, min(365, int(data.get("days", 1))))
+    reason = data.get("reason", "")
+    if not ip:
+        raise HTTPException(400, "Укажите IP адрес")
+    _ip_bans[ip] = {"until": _t.time() + days * 86400, "reason": reason}
+    return {"message": f"IP {ip} заблокирован на {days} дн."}
+
+@app.delete("/admin/ip-bans/{ip_encoded}")
+def admin_unban_ip(ip_encoded: str, admin=Depends(get_admin_user)):
+    from urllib.parse import unquote
+    ip = unquote(ip_encoded)
+    if ip in _ip_bans:
+        del _ip_bans[ip]
+    return {"message": f"IP {ip} разблокирован"}
+
+# ─── ADMIN: ПРОМПТЫ ──────────────────────────────────────────────────────────
+
+PROMPT_LABELS = {
+    MODE_FREE_CHAT: "Свободный чат",
+    MODE_PLAN_GENERATOR: "Генератор плана",
+    MODE_STUDY_STEP: "Обучение по шагам",
+    MODE_FINAL_TEST: "Итоговый тест",
+}
+
+@app.get("/admin/prompts")
+def admin_get_prompts(admin=Depends(get_admin_user)):
+    sample = {"username": "студент", "topic_title": "Python", "current_step": 1, "step_title": "Введение", "total_steps": 5, "completed_count": 0, "user_msg_count": 0, "completed_topics": [], "topic": "Python"}
+    result = {}
+    for mode, label in PROMPT_LABELS.items():
+        is_override = mode in _prompt_overrides and bool(_prompt_overrides[mode])
+        try:
+            content = _prompt_overrides[mode] if is_override else get_system_prompt(mode, **sample)
+        except Exception:
+            content = ""
+        result[mode] = {"label": label, "content": content, "is_override": is_override}
+    return result
+
+@app.patch("/admin/prompts/{mode}")
+def admin_update_prompt(mode: str, data: dict, admin=Depends(get_admin_user)):
+    if mode not in PROMPT_LABELS:
+        raise HTTPException(400, "Неверный режим")
+    content = data.get("content", "").strip()
+    if content:
+        _prompt_overrides[mode] = content
+    else:
+        _prompt_overrides.pop(mode, None)
+    return {"message": "Промпт сохранён" if content else "Промпт сброшен"}
+
+@app.post("/admin/prompts/{mode}/reset")
+def admin_reset_prompt(mode: str, admin=Depends(get_admin_user)):
+    _prompt_overrides.pop(mode, None)
+    return {"message": "Промпт сброшен к исходному"}
 
 def sb_get_all(table: str):
     """Получить все записи из таблицы (без фильтра)"""

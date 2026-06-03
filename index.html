@@ -1059,6 +1059,7 @@ button,input,textarea,select{font-family:'Outfit',sans-serif}
           <button class="admin-tab" id="atab-cases" onclick="switchAdminTab('cases')">🧪 Тест-кейсы</button>
           <button class="admin-tab" id="atab-export" onclick="switchAdminTab('export')">📤 Экспорт</button>
           <button class="admin-tab" id="atab-settings" onclick="switchAdminTab('settings')">⚙️ Настройки</button>
+          <button class="admin-tab" id="atab-prompts" onclick="switchAdminTab('prompts')">🤖 Промпты</button>
         </div>
 
         <!-- Аналитика -->
@@ -1181,6 +1182,12 @@ button,input,textarea,select{font-family:'Outfit',sans-serif}
           </div>
         </div>
 
+        <!-- Промпты -->
+        <div id="adminTabPrompts" style="display:none">
+          <div style="font-size:13px;color:var(--t3);margin-bottom:16px">Переопределите системные промпты ИИ. Изменения применяются немедленно без перезапуска. Доступные переменные: <code style="font-family:'JetBrains Mono',monospace;background:var(--s2);padding:1px 6px;border-radius:4px">{username}</code>, <code style="font-family:'JetBrains Mono',monospace;background:var(--s2);padding:1px 6px;border-radius:4px">{topic_title}</code></div>
+          <div id="promptsContainer" style="display:flex;flex-direction:column;gap:16px"></div>
+        </div>
+
         <!-- Пользователи -->
         <div id="adminTabUsers">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
@@ -1206,6 +1213,12 @@ button,input,textarea,select{font-family:'Outfit',sans-serif}
 
         <!-- Логи -->
         <div id="adminTabLogs" style="display:none">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <input type="text" id="logSearch" placeholder="Поиск по email, username или IP..." oninput="filterAdminLogs(this.value)"
+              style="background:var(--s2);border:1px solid var(--b1);border-radius:10px;padding:8px 14px;color:var(--text);font-family:Outfit,sans-serif;font-size:13px;outline:none;flex:1;max-width:340px">
+            <button onclick="loadAdminLogs()" style="padding:7px 14px;border-radius:8px;border:1px solid var(--b1);background:var(--s2);color:var(--t2);font-size:12px;cursor:pointer;font-family:Outfit,sans-serif">🔄 Обновить</button>
+          </div>
+          <div id="ipBansList" style="margin-bottom:12px"></div>
           <div style="background:var(--s1);border:1px solid var(--b1);border-radius:14px;overflow:hidden">
             <table style="width:100%;border-collapse:collapse;font-size:13px">
               <thead>
@@ -1214,6 +1227,7 @@ button,input,textarea,select{font-family:'Outfit',sans-serif}
                   <th style="padding:12px 16px;text-align:left;color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase">IP</th>
                   <th style="padding:12px 16px;text-align:center;color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase">Результат</th>
                   <th style="padding:12px 16px;text-align:left;color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase">Время</th>
+                  <th style="padding:12px 16px;text-align:center;color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase">Действие</th>
                 </tr>
               </thead>
               <tbody id="adminLogsTable"></tbody>
@@ -2255,7 +2269,7 @@ async function loadAdmin(){
 }
 
 function switchAdminTab(tab){
-  ['users','analytics','subs','mail','logs','cases','export','settings'].forEach(t=>{
+  ['users','analytics','subs','mail','logs','cases','export','settings','prompts'].forEach(t=>{
     const el=document.getElementById(`adminTab${t.charAt(0).toUpperCase()+t.slice(1)}`);
     if(el) el.style.display=t===tab?'block':'none';
     const btn=document.getElementById(`atab-${t}`);
@@ -2267,6 +2281,7 @@ function switchAdminTab(tab){
   if(tab==='logs') loadAdminLogs();
   if(tab==='cases') loadAdminCases();
   if(tab==='settings') loadAdminSettings();
+  if(tab==='prompts') loadAdminPrompts();
 }
 
 // ─── АНАЛИТИКА ───
@@ -2512,22 +2527,98 @@ async function loadAdminLogs(){
   try{
     const r=await fetch(`${API}/admin/logs`,{headers:{'Authorization':'Bearer '+token}});
     _adminLogs=await r.json();
-    const tbody=document.getElementById('adminLogsTable');
-    tbody.innerHTML=_adminLogs.map(l=>`
-      <tr style="border-bottom:1px solid var(--b1)">
-        <td style="padding:10px 16px">
-          <div style="font-weight:600;font-size:13px">${l.username||'—'}</div>
-          <div style="font-size:11px;color:var(--t3)">${l.email||'—'}</div>
-        </td>
-        <td style="padding:10px 16px;color:var(--t3);font-size:12px;font-family:'JetBrains Mono',monospace">${l.ip_address||'—'}</td>
-        <td style="padding:10px 16px;text-align:center">
-          <span class="admin-tag" style="background:${l.success?'rgba(29,216,160,0.12)':'rgba(255,85,102,0.12)'};color:${l.success?'var(--ok)':'var(--err)'}">
-            ${l.success?'Успешно':'Неудача'}
-          </span>
-        </td>
-        <td style="padding:10px 16px;font-size:12px;color:var(--t3)">${l.attempted_at?new Date(l.attempted_at).toLocaleString('ru'):''}</td>
-      </tr>`).join('');
+    renderAdminLogs(_adminLogs);
+    loadIpBans();
   }catch(e){}
+}
+
+function renderAdminLogs(logs){
+  const tbody=document.getElementById('adminLogsTable');
+  if(!logs.length){tbody.innerHTML='<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--t3)">Нет логов</td></tr>';return;}
+  tbody.innerHTML=logs.map(l=>`
+    <tr style="border-bottom:1px solid var(--b1)">
+      <td style="padding:10px 16px">
+        <div style="font-weight:600;font-size:13px">${l.username||'—'}</div>
+        <div style="font-size:11px;color:var(--t3)">${l.email||'—'}</div>
+      </td>
+      <td style="padding:10px 16px;color:var(--t3);font-size:12px;font-family:'JetBrains Mono',monospace">${l.ip_address||'—'}</td>
+      <td style="padding:10px 16px;text-align:center">
+        <span class="admin-tag" style="background:${l.success?'rgba(29,216,160,0.12)':'rgba(255,85,102,0.12)'};color:${l.success?'var(--ok)':'var(--err)'}">
+          ${l.success?'Успешно':'Неудача'}
+        </span>
+      </td>
+      <td style="padding:10px 16px;font-size:12px;color:var(--t3)">${l.attempted_at?new Date(l.attempted_at).toLocaleString('ru'):''}</td>
+      <td style="padding:10px 16px;text-align:center">
+        ${l.ip_address&&l.ip_address!=='—'?`<button class="admin-action danger" onclick="showBanIpModal('${l.ip_address}','${(l.email||'').replace(/'/g,'')}')">🚫 Бан</button>`:''}
+      </td>
+    </tr>`).join('');
+}
+
+function filterAdminLogs(q){
+  const lower=q.toLowerCase();
+  const filtered=_adminLogs.filter(l=>
+    (l.email||'').toLowerCase().includes(lower)||
+    (l.username||'').toLowerCase().includes(lower)||
+    (l.ip_address||'').includes(q)
+  );
+  renderAdminLogs(filtered);
+}
+
+async function loadIpBans(){
+  try{
+    const r=await fetch(`${API}/admin/ip-bans`,{headers:{'Authorization':'Bearer '+token}});
+    const bans=await r.json();
+    const el=document.getElementById('ipBansList');
+    if(!el) return;
+    if(!bans||!bans.length){el.innerHTML='';return;}
+    el.innerHTML=`<div style="background:rgba(255,85,102,0.07);border:1px solid rgba(255,85,102,0.2);border-radius:12px;padding:14px 16px">
+      <div style="font-size:12px;font-weight:700;color:var(--err);margin-bottom:8px">🚫 Активные блокировки IP (${bans.length})</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${bans.map(b=>`<div style="display:flex;align-items:center;gap:8px;background:var(--s1);border:1px solid rgba(255,85,102,0.25);border-radius:8px;padding:5px 10px">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:12px">${b.ip}</span>
+          <span style="font-size:11px;color:var(--t3)">${b.days_left} дн.</span>
+          ${b.reason?`<span style="font-size:11px;color:var(--t3)">— ${b.reason}</span>`:''}
+          <button onclick="unbanIp('${b.ip}')" style="border:none;background:none;color:var(--err);cursor:pointer;font-size:14px;padding:0;line-height:1">✕</button>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }catch(e){}
+}
+
+function showBanIpModal(ip,email){
+  const mo=document.createElement('div');mo.className='mo show';mo.style.zIndex='3000';
+  mo.innerHTML=`<div class="md" style="max-width:400px">
+    <div class="md-head"><div class="md-title">🚫 Заблокировать IP</div><button class="md-close" onclick="this.closest('.mo').remove()">✕</button></div>
+    <div style="padding:4px 0 16px">
+      <div style="font-size:13px;color:var(--t2)">IP: <strong style="font-family:'JetBrains Mono',monospace">${ip}</strong></div>
+      ${email?`<div style="font-size:12px;color:var(--t3);margin-top:4px">Пользователь: ${email}</div>`:''}
+    </div>
+    <div class="fg"><label class="flabel">Срок блокировки (дней)</label><input type="number" class="finput" id="banDays" value="7" min="1" max="365"></div>
+    <div class="fg"><label class="flabel">Причина (необязательно)</label><input type="text" class="finput" id="banReason" placeholder="Подозрительная активность..."></div>
+    <div class="md-actions">
+      <button class="fbtn ghost" onclick="this.closest('.mo').remove()">Отмена</button>
+      <button class="fbtn" style="background:var(--err);color:#fff;border:none;padding:10px 20px;border-radius:10px;font-family:Outfit,sans-serif;font-weight:600;cursor:pointer" onclick="doBanIp('${ip}',this)">Заблокировать</button>
+    </div>
+  </div>`;
+  mo.addEventListener('click',e=>{if(e.target===mo)mo.remove();});
+  document.body.appendChild(mo);
+}
+
+async function doBanIp(ip,btn){
+  const days=parseInt(document.getElementById('banDays').value)||7;
+  const reason=document.getElementById('banReason').value.trim();
+  btn.textContent='Блокируем...';btn.disabled=true;
+  const r=await fetch(`${API}/admin/ip-bans`,{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({ip,days,reason})});
+  const d=await r.json();
+  btn.closest('.mo').remove();
+  notify(d.message||'IP заблокирован');
+  loadIpBans();
+}
+
+async function unbanIp(ip){
+  await fetch(`${API}/admin/ip-bans/${encodeURIComponent(ip)}`,{method:'DELETE',headers:{'Authorization':'Bearer '+token}});
+  notify('IP разблокирован');
+  loadIpBans();
 }
 
 async function loadAdminCases(){
@@ -2645,6 +2736,58 @@ async function submitAddCase(btn){
   btn.closest('.mo').remove();
   notify('Тест-кейс добавлен');
   loadAdminCases();
+}
+
+// ─── ПРОМПТЫ ───
+async function loadAdminPrompts(){
+  try{
+    const r=await fetch(`${API}/admin/prompts`,{headers:{'Authorization':'Bearer '+token}});
+    const data=await r.json();
+    const container=document.getElementById('promptsContainer');
+    const modeIcons={'free_chat':'💬','plan_generator':'📋','study_step':'📚','final_test':'🏁'};
+    const entries=Object.entries(data);
+    container.innerHTML=entries.map(([mode,d])=>`
+      <div class="activity-card" style="padding:0;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--b1)">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:1.3rem">${modeIcons[mode]||'🤖'}</span>
+            <div>
+              <div style="font-size:14px;font-weight:700">${d.label}</div>
+              <span style="font-size:11px;padding:2px 8px;border-radius:99px;${d.is_override?'color:var(--warn);background:rgba(255,170,68,0.12)':'color:var(--ok);background:rgba(29,216,160,0.1)'}">
+                ${d.is_override?'Переопределён':'Стандартный'}
+              </span>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            ${d.is_override?`<button class="admin-action" onclick="resetPrompt('${mode}')">↩ Сбросить</button>`:''}
+            <button class="fbtn primary" style="padding:6px 14px;font-size:12px" onclick="savePrompt('${mode}')">Сохранить</button>
+          </div>
+        </div>
+        <div style="padding:12px 16px">
+          <textarea id="prompt_${mode}" style="width:100%;min-height:180px;background:var(--s2);border:1px solid var(--b1);border-radius:10px;padding:12px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.6;resize:vertical;outline:none"></textarea>
+        </div>
+      </div>`).join('');
+    entries.forEach(([mode,d])=>{
+      const ta=document.getElementById(`prompt_${mode}`);
+      if(ta) ta.value=d.content||'';
+    });
+  }catch(e){}
+}
+
+async function savePrompt(mode){
+  const ta=document.getElementById(`prompt_${mode}`);
+  if(!ta) return;
+  const r=await fetch(`${API}/admin/prompts/${mode}`,{method:'PATCH',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({content:ta.value})});
+  const d=await r.json();
+  notify(d.message||'Промпт сохранён');
+  loadAdminPrompts();
+}
+
+async function resetPrompt(mode){
+  if(!confirm('Сбросить промпт к исходному?')) return;
+  await fetch(`${API}/admin/prompts/${mode}/reset`,{method:'POST',headers:{'Authorization':'Bearer '+token}});
+  notify('Промпт сброшен к исходному');
+  loadAdminPrompts();
 }
 
 // ─── MOBILE ───
