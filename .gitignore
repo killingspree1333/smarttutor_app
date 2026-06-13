@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.py[cod]
+*.pyo
+.idea/
+*.exe
+*.apk
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
