@@ -2,7 +2,7 @@
 import requests
 from PyQt6.QtCore import QThread, pyqtSignal
 
-API_URL = "https://smarttutorbackend-production.up.railway.app"
+API_URL = "https://smarttutorapp-production.up.railway.app"
 
 class ApiWorker(QThread):
     success = pyqtSignal(object)

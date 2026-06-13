@@ -196,7 +196,7 @@ class LoginDialog(QDialog):
         layout.addSpacing(14)
 
         # ── Register hint ──
-        hint = QLabel('Нет аккаунта? <a href="https://smarttutorbackend-production.up.railway.app" style="color:#8878ff;text-decoration:none;">Зарегистрируйтесь на сайте →</a>')
+        hint = QLabel('Нет аккаунта? <a href="https://smarttutorapp-production.up.railway.app" style="color:#8878ff;text-decoration:none;">Зарегистрируйтесь на сайте →</a>')
         hint.setOpenExternalLinks(True)
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hint.setStyleSheet("font-size: 12px; color: #40405a; background: transparent; border: none;")
