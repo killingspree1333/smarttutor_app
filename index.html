@@ -1465,9 +1465,7 @@ async function checkAdminRole(){
     const r=await fetch(`${API}/profile/me`,{headers:{'Authorization':'Bearer '+token}});
     if(!r.ok) return;
     const p=await r.json();
-    if(p.is_admin){
-      document.getElementById('nav-admin').style.display='flex';
-    }
+    document.getElementById('nav-admin').style.display=p.is_admin?'flex':'none';
   }catch(e){}
 }
 
@@ -1679,6 +1677,7 @@ function setUser(d){
   user={id:d.user_id,username:d.username,email:d.email,full_name:d.full_name};
   localStorage.setItem('st_token',token);
   localStorage.setItem('st_user',JSON.stringify(user));
+  checkAdminRole();
 }
 
 function logout(){
